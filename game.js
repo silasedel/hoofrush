@@ -358,8 +358,9 @@ const gateMats = [0xff4d6d, 0x3a86ff, 0xffbe0b];
 const poleTex = canvasTex(128, 16, (g, w, h) => { for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#ffffff' : '#e63946'; g.fillRect(i * 16, 0, 16, h); } });
 const poleTex2 = canvasTex(128, 16, (g, w, h) => { for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#ffffff' : '#1d4ed8'; g.fillRect(i * 16, 0, 16, h); } });
 
+let QORDER = QUESTIONS, qOffset = 0;
 function buildCourse(seed) {
-  const r = rng(seed); const qs = shuffle(QUESTIONS.map(q => q.slice()), r);
+  const r = rng(seed); const qs = QORDER.slice(qOffset).concat(QORDER).map(q => q.slice());
   const ev = []; let qi = 0;
   for (let z = 120; z < FINISH - 100; z += GATE_GAP) {
     const q = qs[qi++ % qs.length]; const order = shuffle([1, 2, 3], r);
@@ -528,7 +529,7 @@ function hostHandle(fromId, d) {
 function clientHandle(d) {
   if (d.t === 'you') { me.id = d.id; }
   else if (d.t === 'lobby') { players = d.players; renderLobby(); }
-  else if (d.t === 'start') { startRace(d.seed, d.players); $('timer').dataset.round = d.round; }
+  else if (d.t === 'start') { setQ(d.qseed, d.round); startRace(d.seed, d.players); $('timer').dataset.round = d.round; }
   else if (d.t === 'feed') { feed(d.text); }
   else if (d.t === 'hack') { startHackPhase(d); }
   else if (d.t === 'hackRes') { hkBody(d.ok ? `<div class="code" style="font-size:22px;color:#4dff8a">ACCESS GRANTED</div><div class="small">Stole ${d.amt} from ${esc(d.targetName)}!</div>` : `<div class="code" style="font-size:22px;color:#ff4060">ACCESS DENIED</div><div class="small">Wrong password.</div>`); d.ok ? sfx.good() : sfx.bad(); }
@@ -593,18 +594,20 @@ function saveName() {
   me.name = n; localStorage.setItem('hr_name', n); return true;
 }
 let round = 0, finCount = 0, raceTimer = null, myPw = localStorage.getItem('hr_pw') || PASSWORDS[Math.floor(Math.random() * PASSWORDS.length)];
+function setQ(qs, rd) { QORDER = shuffle(QUESTIONS.slice(), rng(qs)); qOffset = ((rd - 1) * 4) % QORDER.length; }
 function toPlayer(id, msg) { if (id === me.id) clientHandle(msg); else conns.get(id)?.send(msg); }
-function hostStart() { round = 0; for (const id in players) players[id].score = 0; nextRound(); }
+let gameQSeed = 1;
+function hostStart() { gameQSeed = Math.floor(Math.random() * 1e9); round = 0; for (const id in players) players[id].score = 0; nextRound(); }
 function nextRound() {
   round++; finCount = 0; const seed = Math.floor(Math.random() * 1e9);
   for (const id in players) Object.assign(players[id], { z: 0, x: 0, y: 0, coins: 0, correct: 0, fin: 0, gain: 0 });
-  const m = { t: 'start', seed, players, round }; broadcast(m); startRace(seed, players); $('timer').dataset.round = round;
+  const m = { t: 'start', seed, players, round, qseed: gameQSeed }; broadcast(m); setQ(gameQSeed, round); startRace(seed, players); $('timer').dataset.round = round;
   clearTimeout(raceTimer); raceTimer = setTimeout(hostEndRace, 45000);
 }
 function hostEndRace() {
   clearTimeout(raceTimer);
-  const opts = {}; for (const id in players) opts[id] = shuffle([players[id].password, ...shuffle(PASSWORDS.filter(w => w !== players[id].password), Math.random).slice(0, 2)], Math.random);
-  const q = QUESTIONS[Math.floor(Math.random() * QUESTIONS.length)];
+  const opts = {}; for (const id in players) opts[id] = shuffle([players[id].password, ...shuffle(PASSWORDS.filter(w => w !== players[id].password), Math.random).slice(0, 3)], Math.random);
+  const q = QORDER[(qOffset + 3) % QORDER.length];
   const m = { t: 'hack', players, opts, q }; broadcast(m); clientHandle(m);
   // bots occasionally hack too
   for (const id in players) if (players[id].bot && Math.random() < 0.5) setTimeout(() => { const others = Object.keys(players).filter(k => k !== id); const tg = others[Math.floor(Math.random() * others.length)]; hostHandle(id, { t: 'hackTry', target: tg, guess: opts[tg][Math.floor(Math.random() * 3)] }); }, 4000 + Math.random() * 8000);
@@ -614,6 +617,7 @@ function hostEndRace() {
 let hkInt = null;
 function hkBody(html) { $('hkBody').innerHTML = html; }
 function startHackPhase(d) {
+  document.exitPointerLock?.();
   mode = 'hack'; $('hud').classList.remove('on'); $('touch').style.display = 'none'; show('hackS'); sfx.hack();
   let left = 15; $('hkTimer').textContent = left + 's'; clearInterval(hkInt); hkInt = setInterval(() => { left--; $('hkTimer').textContent = Math.max(0, left) + 's'; if (left <= 0) { clearInterval(hkInt); hkBody('<div class="small">Time\'s up!</div>'); } }, 1000);
   const q = d.q; const answers = shuffle([q[1], q[2], q[3]], Math.random);
@@ -631,6 +635,7 @@ function startHackPhase(d) {
   });
 }
 function showBoard(d) {
+  document.exitPointerLock?.();
   clearInterval(hkInt); mode = 'results'; $('hud').classList.remove('on');
   const all = Object.entries(d.players).map(([id, p]) => ({ ...p, id })).sort((a, b) => (b.score || 0) - (a.score || 0));
   const medals = ['🥇', '🥈', '🥉'];
@@ -647,6 +652,7 @@ function startRace(seed, plist) {
   raceSeed = seed; players = plist || players;
   clearCourse(); course = buildCourse(seed);
   Object.keys(ghosts).forEach(removeGhost);
+  aimX = 0; xVel = 0; setTimeout(() => { try { canvas.requestPointerLock?.(); } catch (e) {} }, 0);
   Object.assign(me, { finished: false, z: 0, x: 0, lane: 1, y: 0, vy: 0, coins: 0, correct: 0, speedLvl: 0, boostLvl: 0, multLvl: 0 });
   effects = { boost: 0, slow: 0, slowMult: 1, mud: 0 };
   me.color = players[me.id]?.color || COLORS[0];
@@ -673,7 +679,10 @@ function endRace() {
 }
 
 function laneIndexOf(x) { let best = 0; LANES.forEach((lx, i) => { if (Math.abs(lx - x) < Math.abs(LANES[best] - x)) best = i; }); return best; }
-function steer(dir) { if (mode === 'race' || mode === 'count') me.lane = clamp(me.lane + dir, 0, 2); }
+function steer(dir) { if (mode === 'race' || mode === 'count') { me.lane = clamp(me.lane + dir, 0, 2); aimX = LANES[me.lane]; } }
+let aimX = 0, xVel = 0;
+addEventListener('mousemove', e => { if (document.pointerLockElement !== canvas || !(mode === 'race' || mode === 'count')) return; aimX = clamp(aimX - e.movementX * 0.018, -4.2, 4.2); me.lane = laneIndexOf(aimX); });
+canvas.addEventListener('mousedown', () => { if ((mode === 'race' || mode === 'count') && document.pointerLockElement !== canvas) canvas.requestPointerLock?.(); });
 function jump() { if (mode === 'race' && me.y <= 0.001) { me.vy = 9; sfx.jump(); airborne = true; } }
 let airborne = false;
 
@@ -710,7 +719,7 @@ function updateQuestion() {
     curGate = next;
     if (next) { $('qkind').textContent = next.survey ? '★ SURVEY SAYS ★' : 'QUIZ'; $('qkind').className = next.survey ? 'survey' : ''; $('qtext').textContent = next.q; next.opts.forEach((o, i) => $('op' + i).textContent = ['◀ ', '▲ ', '▶ '][i] + o); }
   }
-  $('qbox').style.opacity = next && next.z - me.z < GATE_GAP + 10 ? 1 : 0;
+  $('qbox').classList.toggle('down', !!(next && next.z - me.z < 150 && next.z - me.z > -2));
 }
 function updateBoard() {
   let list;
@@ -772,12 +781,12 @@ function tick() {
   }
 
   // player physics
-  me.x = lerp(me.x, LANES[me.lane], 1 - Math.exp(-dt * 10));
+  { const tgt = LANES[me.lane] * 0.8 + aimX * 0.2; xVel += (tgt - me.x) * 140 * dt; xVel *= Math.exp(-dt * 11); me.x += xVel * dt; }
   me.vy -= 26 * dt; me.y = Math.max(0, me.y + me.vy * dt); if (me.y === 0) { me.vy = Math.max(0, me.vy); if (airborne) { airborne = false; sfx.land(); } }
 
   if (horse) {
     horse.position.set(me.x, me.y, me.z);
-    horse.rotation.y = (LANES[me.lane] - me.x) * 0.12;
+    horse.rotation.y = clamp(xVel * 0.05, -0.4, 0.4); horse.rotation.z = clamp(-xVel * 0.02, -0.15, 0.15);
     horse.rotation.x = me.y > 0 ? -clamp(me.vy * 0.04, -0.35, 0.35) : 0;
     { const ud = horse.userData; ud.phase += dt * (mode === 'race' ? speed / BASE_SPEED : 0.3) * 9; ud.rider.position.y = 1.62 + Math.abs(Math.sin(ud.phase)) * 0.07; ud.rider.rotation.x = me.y > 0 ? 0.25 : Math.sin(ud.phase) * 0.04; }
     horse.userData.mixer.update(dt * (mode === 'race' ? speed / BASE_SPEED : 0.25) * 1.1);

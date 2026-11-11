@@ -48,7 +48,7 @@ input::placeholder{color:#6b4fa0}
 #hud{position:fixed;inset:0;pointer-events:none;z-index:10;display:none}
 #hud.on{display:block}
 #timer{position:absolute;top:16px;left:50%;transform:translateX(-50%);padding:8px 16px;font-family:'Press Start 2P';font-size:20px;color:var(--pac)}
-#qbox{position:absolute;top:72px;left:50%;transform:translateX(-50%);width:min(780px,94vw);text-align:center;transition:opacity .25s}
+#qbox{position:absolute;top:64px;left:50%;transform:translate(-50%,-260%);width:min(820px,94vw);text-align:center;transition:transform .45s cubic-bezier(.3,1.6,.5,1)}#qbox.down{transform:translate(-50%,0)}#qopts{display:none!important}
 #qkind{font-family:'Press Start 2P';font-size:11px;color:var(--bg);background:var(--cyan);display:inline-block;padding:5px 8px;margin-bottom:8px}
 #qkind.survey{background:var(--pink)}
 #qtext{padding:12px 18px;font-size:clamp(26px,3.4vw,38px);color:#fff;line-height:1}
@@ -143,7 +143,7 @@ input::placeholder{color:#6b4fa0}
 <div id="hud">
   <div id="mud"></div>
   <div id="timer" class="pbox">2:30</div>
-  <div id="qbox"><div id="qkind">QUIZ</div><div id="qtext" class="pbox"></div><div id="qopts"><div class="opt o0" id="op0"></div><div class="opt o1" id="op1"></div><div class="opt o2" id="op2"></div></div><div class="qhint">◀ ▶ steer into the right gate · SPACE = jump fences</div></div>
+  <div id="qbox"><div id="qkind">QUIZ</div><div id="qtext" class="pbox"></div><div id="qopts"><div class="opt o0" id="op0"></div><div class="opt o1" id="op1"></div><div class="opt o2" id="op2"></div></div><div class="qhint">Ride through the gate with the right answer · mouse / ◀ ▶ to steer · SPACE jump</div></div>
   <div id="stats" class="pbox"><div id="place">#1</div><div id="dist">0 m</div><div>CARROTS <span id="coins">0</span></div></div>
   <div id="board" class="pbox"></div>
   <div id="feed"></div>
