@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Sky } from 'three/addons/objects/Sky.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 // ---------------- CONFIG ----------------
 const DURATION = 150;           // seconds per race
@@ -298,7 +299,21 @@ const COAT_TINT = { '#ffffff': [1, 1, 1], '#8a5a3a': [0.62, 0.55, 0.5], '#3a2a24
 const defaultOutfit = () => ({ helmet: WARD.helmet[1], jacket: WARD.jacket[0], pants: WARD.pants[0], coat: WARD.coat[0], pad: WARD.pad[3] });
 let outfit = Object.assign(defaultOutfit(), JSON.parse(localStorage.getItem('hr_outfit') || '{}'));
 function std(c, r = 0.7) { return new THREE.MeshStandardMaterial({ color: c, roughness: r }); }
+let humanProto = null, humanScale = 1, hipsY = 0;
+const POSE = { 'mixamorigSpine': [0.28, 0, 0], 'mixamorigLeftUpLeg': [-1.25, 0, -0.42], 'mixamorigRightUpLeg': [-1.25, 0, 0.42], 'mixamorigLeftLeg': [1.55, 0, 0], 'mixamorigRightLeg': [1.55, 0, 0],
+  'mixamorigLeftArm': [0.9, 0, -0.9], 'mixamorigRightArm': [0.9, 0, 0.9], 'mixamorigLeftForeArm': [0, 0, -0.9], 'mixamorigRightForeArm': [0, 0, 0.9], 'mixamorigHead': [-0.25, 0, 0] };
+function makeHuman(o) {
+  const r = new THREE.Group(); const m = SkeletonUtils.clone(humanProto); m.scale.setScalar(humanScale);
+  let head = null;
+  m.traverse(n => { if (n.isMesh) { n.castShadow = true; n.frustumCulled = false; n.material = n.material.clone(); n.material.color.set(o.jacket).lerp(new THREE.Color('#ffffff'), 0.55); } if (n.isBone && POSE[n.name]) { const [x, y, z] = POSE[n.name]; n.rotation.x += x; n.rotation.y += y; n.rotation.z += z; } if (n.name === 'mixamorigHeadTop_End') head = n; if (n.name === 'mixamorigHead' && !head) head = n; });
+  m.position.y = -hipsY; r.add(m);
+  // riding helmet on head bone
+  const hb = m.getObjectByName('mixamorigHead');
+  if (hb) { const hel = new THREE.Mesh(new THREE.SphereGeometry(0.135, 20, 12, 0, Math.PI * 2, 0, Math.PI / 1.8), std(o.helmet, 0.25)); hel.scale.setScalar(1 / humanScale); hel.position.set(0, 0.12 / humanScale, 0.01 / humanScale); const brim = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.02, 0.09), std(o.helmet, 0.25)); brim.position.set(0, 0.0, 0.14); hel.add(brim); hel.castShadow = true; hb.add(hel); }
+  r.userData = {}; return r;
+}
 function makeRider(o) {
+  if (humanProto) return makeHuman(o);
   const r = new THREE.Group(); const skin = std('#f1c7a5');
   const add = (geo, mat, x, y, z, rx = 0, rz = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, 0, rz); m.castShadow = true; r.add(m); return m; };
   const jacket = std(o.jacket), pants = std(o.pants), boots = std('#141018', 0.4);
@@ -334,10 +349,10 @@ function makeHorse(colorHex, isMe, o = outfit) {
   const saddle = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.3, 0.1, 14, 1, false), std('#3b2416', 0.45));
   saddle.scale.z = 1.3; saddle.position.y = 0.05; pad.add(saddle);
   pad.position.set(0, 1.47, 0.12); pad.castShadow = true; g.add(pad);
-  const rider = makeRider(o); rider.position.set(0, 1.62, 0.05); g.add(rider);
+  const rider = makeRider(o); rider.position.set(0, 1.62, 0.05); g.add(rider); g.userData.riderY = humanProto ? 1.55 : 1.62;
   const mixer = new THREE.AnimationMixer(mesh);
   const act = mixer.clipAction(horseClip); act.play(); act.time = Math.random();
-  g.userData = { mixer, pad, mesh, rider, phase: Math.random() * 6 };
+  g.userData = { mixer, pad, mesh, rider, phase: Math.random() * 6, riderY: humanProto ? 1.55 : 1.62 };
   scene.add(g);
   return g;
 }
@@ -663,7 +678,7 @@ function startRace(seed, plist) {
   if (matchMedia('(pointer:coarse)').matches) $('touch').style.display = 'block';
 }
 function makeGhost(id, p) {
-  const g = makeHorse(p.color, false, p.outfit || { ...defaultOutfit(), coat: WARD.coat[Math.floor(Math.random() * 6)], jacket: p.color, pad: p.color }); g.add(nameSprite(p.name, p.color));
+  const g = makeHorse(p.color, false, p.outfit || { ...defaultOutfit(), coat: WARD.coat[Math.floor(Math.random() * 6)], jacket: p.color, pad: p.color }); g.traverse(n => { if (n.isMesh) { n.material = n.material.clone(); n.material.transparent = true; n.material.opacity = 0.5; n.material.depthWrite = false; } }); g.add(nameSprite(p.name, p.color));
   ghosts[id] = { g, tz: 0, tx: 0, ty: 0 };
 }
 function endRace() {
@@ -788,7 +803,7 @@ function tick() {
     horse.position.set(me.x, me.y, me.z);
     horse.rotation.y = clamp(xVel * 0.05, -0.4, 0.4); horse.rotation.z = clamp(-xVel * 0.02, -0.15, 0.15);
     horse.rotation.x = me.y > 0 ? -clamp(me.vy * 0.04, -0.35, 0.35) : 0;
-    { const ud = horse.userData; ud.phase += dt * (mode === 'race' ? speed / BASE_SPEED : 0.3) * 9; ud.rider.position.y = 1.62 + Math.abs(Math.sin(ud.phase)) * 0.07; ud.rider.rotation.x = me.y > 0 ? 0.25 : Math.sin(ud.phase) * 0.04; }
+    { const ud = horse.userData; ud.phase += dt * (mode === 'race' ? speed / BASE_SPEED : 0.3) * 9; ud.rider.position.y = ud.riderY + Math.abs(Math.sin(ud.phase)) * 0.07; ud.rider.rotation.x = me.y > 0 ? 0.25 : Math.sin(ud.phase) * 0.04; }
     horse.userData.mixer.update(dt * (mode === 'race' ? speed / BASE_SPEED : 0.25) * 1.1);
     if (mode === 'race' && me.y === 0 && Math.random() < 0.6) emitDust(me.x, me.z);
   }
@@ -800,7 +815,7 @@ function tick() {
     gh.g.position.x = lerp(gh.g.position.x, p.x || 0, k);
     gh.g.position.y = lerp(gh.g.position.y, p.y || 0, k);
     gh.g.position.z = mode === 'race' ? lerp(gh.g.position.z, (p.z || 0) + (solo ? 0 : speed * 0.1), k) : (p.z || 0);
-    { const ud = gh.g.userData; ud.phase += dt * 9; ud.rider.position.y = 1.62 + Math.abs(Math.sin(ud.phase)) * 0.07; }
+    { const ud = gh.g.userData; ud.phase += dt * 9; ud.rider.position.y = ud.riderY + Math.abs(Math.sin(ud.phase)) * 0.07; }
     gh.g.userData.mixer.update(dt * (mode === 'race' ? 1.1 : 0.25));
   }
   // course anim
@@ -888,6 +903,12 @@ new GLTFLoader().load('models/Horse.glb', gltf => {
   const size = box.getSize(new THREE.Vector3());
   horseScale = 2.3 / size.y; horseYOff = -box.min.y * horseScale;
   window.__horseInfo = { size: size.toArray(), min: box.min.toArray(), rot: horseProto.rotation.toArray() };
+  new GLTFLoader().load('models/Michelle.glb', h => { try {
+    humanProto = h.scene; humanProto.updateMatrixWorld(true);
+    const hb = new THREE.Box3().setFromObject(humanProto); humanScale = 1.6 / hb.getSize(new THREE.Vector3()).y;
+    const hips = humanProto.getObjectByName('mixamorigHips'); const hp = new THREE.Vector3(); hips.getWorldPosition(hp); hipsY = (hp.y - hb.min.y) * humanScale;
+    rebuildMyHorse(); console.log('human ok', humanScale, hipsY); } catch (e) { console.error('human err', e.message, e.stack); }
+  }, undefined, e => console.error('human fail', e));
   rebuildMyHorse();
-  $('loading').remove(); show('menu'); tick();
+  $('loading').remove(); show('menu'); tick(); window.__tick = tick;
 });
