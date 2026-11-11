@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Hoof Rush</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:#0d1b2a;font-family:'Fredoka',system-ui,sans-serif;color:#fff;user-select:none}
+canvas#c{position:fixed;inset:0;width:100%;height:100%;display:block}
+.screen{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:20;background:radial-gradient(ellipse at center,rgba(20,30,60,.35),rgba(5,10,25,.8))}
+.screen.on{display:flex}
+.card{background:rgba(255,255,255,.96);color:#1d2340;border-radius:28px;padding:34px 38px;width:min(440px,92vw);box-shadow:0 20px 60px rgba(0,0,0,.45),0 0 0 6px rgba(255,255,255,.15);text-align:center}
+.logo{font-size:56px;font-weight:700;line-height:1;letter-spacing:-1px;background:linear-gradient(180deg,#ffb33d,#ff6a3d);-webkit-background-clip:text;color:transparent;filter:drop-shadow(0 3px 0 #7a2e10)}
+.tag{color:#6a7194;margin:8px 0 22px;font-size:16px}
+input{width:100%;font:inherit;font-size:20px;padding:14px 16px;border-radius:14px;border:3px solid #dfe3f2;outline:none;text-align:center;color:#1d2340;margin-bottom:12px}
+input:focus{border-color:#7b61ff}
+.btn{display:block;width:100%;font:inherit;font-weight:700;font-size:21px;padding:14px;border:none;border-radius:16px;cursor:pointer;color:#fff;margin-top:10px;box-shadow:0 6px 0 rgba(0,0,0,.25);transition:transform .08s}
+.btn:active{transform:translateY(4px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.purple{background:#7b61ff}.green{background:#22c06b}.orange{background:#ff8a2b}.gray{background:#9aa0b8}
+.row{display:flex;gap:10px}.row input{margin:10px 0 0;flex:1;text-transform:uppercase;letter-spacing:6px}.row .btn{width:auto;padding:14px 22px}
+.or{color:#aab;margin:16px 0 4px;font-size:14px}
+.code{font-size:64px;font-weight:700;letter-spacing:10px;color:#7b61ff;margin:4px 0}
+.plist{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:16px 0;min-height:44px}
+.chip{padding:8px 14px;border-radius:999px;color:#fff;font-weight:600}
+.err{color:#e5484d;min-height:20px;margin-top:8px;font-size:15px}
+.small{font-size:14px;color:#6a7194}
+/* HUD */
+#hud{position:fixed;inset:0;pointer-events:none;z-index:10;display:none}
+#hud.on{display:block}
+#timer{position:absolute;top:14px;left:50%;transform:translateX(-50%);background:rgba(15,20,45,.75);padding:6px 20px;border-radius:999px;font-size:26px;font-weight:700}
+#qbox{position:absolute;top:66px;left:50%;transform:translateX(-50%);width:min(760px,94vw);text-align:center;transition:opacity .25s}
+#qtext{background:#fff;color:#1d2340;font-size:clamp(18px,2.6vw,28px);font-weight:700;padding:12px 22px;border-radius:18px;box-shadow:0 8px 0 rgba(0,0,0,.2)}
+#qopts{display:flex;gap:10px;margin-top:10px}
+.opt{flex:1;padding:10px;border-radius:14px;font-weight:700;font-size:clamp(14px,2vw,20px);box-shadow:0 5px 0 rgba(0,0,0,.25)}
+.o0{background:#ff4d6d}.o1{background:#3a86ff}.o2{background:#ffbe0b;color:#3a2a00}
+.qhint{font-size:13px;opacity:.85;margin-top:6px;text-shadow:0 1px 3px #000}
+#stats{position:absolute;top:14px;left:14px;background:rgba(15,20,45,.75);padding:10px 16px;border-radius:16px;font-size:18px;line-height:1.5}
+#place{font-size:34px;font-weight:700;color:#ffd166}
+#coins{color:#ffb347;font-weight:700}
+#board{position:absolute;top:14px;right:14px;background:rgba(15,20,45,.75);padding:10px 14px;border-radius:16px;min-width:190px;font-size:16px}
+#board div{display:flex;justify-content:space-between;gap:14px;padding:2px 0}
+#board .me{color:#ffd166;font-weight:700}
+#shop{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:8px;pointer-events:auto}
+.sbtn{font:inherit;background:rgba(15,20,45,.85);color:#fff;border:3px solid rgba(255,255,255,.25);border-radius:16px;padding:8px 12px;cursor:pointer;min-width:104px;text-align:center}
+.sbtn b{display:block;font-size:15px}.sbtn span{font-size:13px;color:#ffb347}
+.sbtn.can{border-color:#22c06b}.sbtn:disabled{opacity:.5}
+.sbtn .k{font-size:11px;opacity:.6}
+#toast{position:absolute;top:42%;left:50%;transform:translate(-50%,-50%);font-size:clamp(34px,6vw,64px);font-weight:700;text-shadow:0 4px 0 rgba(0,0,0,.35),0 0 30px rgba(0,0,0,.4);opacity:0;transition:opacity .2s;white-space:nowrap}
+#feed{position:absolute;left:14px;bottom:110px;font-size:16px;text-shadow:0 1px 4px #000;display:flex;flex-direction:column;gap:4px}
+#count{position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);font-size:140px;font-weight:700;text-shadow:0 8px 0 rgba(0,0,0,.3)}
+#mud{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 30%,rgba(90,55,20,.85));opacity:0;transition:opacity .3s}
+#touch{position:fixed;bottom:0;left:0;right:0;height:45%;display:none;z-index:9}
+#touch div{position:absolute;bottom:90px;width:84px;height:84px;border-radius:50%;background:rgba(255,255,255,.22);border:3px solid rgba(255,255,255,.5);font-size:34px;display:flex;align-items:center;justify-content:center}
+#results .row2{display:flex;justify-content:space-between;padding:10px 14px;border-radius:12px;margin:6px 0;font-size:20px;font-weight:600;background:#f1f3fb}
+#results .row2.first{background:linear-gradient(90deg,#ffd166,#ffb33d)}
+#loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:50;background:#0d1b2a;font-size:26px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="loading">🐎 Saddling up…</div>
+
+<div id="menu" class="screen">
+  <div class="card">
+    <div class="logo">HOOF RUSH</div>
+    <div class="tag">Gallop. Jump. Answer by riding through the right gate.</div>
+    <input id="name" maxlength="14" placeholder="Your name">
+    <button class="btn purple" id="createBtn">Create Game</button>
+    <div class="row"><input id="joinCode" maxlength="4" placeholder="CODE"><button class="btn green" id="joinBtn">Join</button></div>
+    <button class="btn gray" id="soloBtn" style="font-size:17px;padding:10px">Practice vs bots</button>
+    <div class="err" id="menuErr"></div>
+  </div>
+</div>
+
+<div id="lobby" class="screen">
+  <div class="card">
+    <div class="small">GAME CODE</div>
+    <div class="code" id="lobbyCode">----</div>
+    <div class="small" id="lobbyLink"></div>
+    <div class="plist" id="lobbyPlayers"></div>
+    <button class="btn orange" id="startBtn">Start Race!</button>
+    <div class="small" id="lobbyWait" style="margin-top:12px">Waiting for host to start…</div>
+    <div class="err" id="lobbyErr"></div>
+  </div>
+</div>
+
+<div id="results" class="screen">
+  <div class="card">
+    <div class="logo" style="font-size:44px">FINISH!</div>
+    <div id="resList" style="margin:18px 0"></div>
+    <button class="btn orange" id="againBtn">Race Again</button>
+    <div class="small" id="againWait" style="margin-top:12px">Waiting for host…</div>
+  </div>
+</div>
+
+<div id="hud">
+  <div id="mud"></div>
+  <div id="timer">2:30</div>
+  <div id="qbox"><div id="qtext"></div><div id="qopts"><div class="opt o0" id="op0"></div><div class="opt o1" id="op1"></div><div class="opt o2" id="op2"></div></div><div class="qhint">Steer into the gate with the right answer! ◀ ▶ to switch lanes · SPACE to jump fences</div></div>
+  <div id="stats"><div id="place">#1</div><div id="dist">0 m</div><div>🥕 <span id="coins">0</span></div></div>
+  <div id="board"></div>
+  <div id="feed"></div>
+  <div id="shop"></div>
+  <div id="toast"></div>
+  <div id="count"></div>
+</div>
+<div id="touch"><div id="tL" style="left:20px">◀</div><div id="tJ" style="left:50%;transform:translateX(-50%)">⤒</div><div id="tR" style="right:20px">▶</div></div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+<script type="module" src="game.js"></script>
+</body>
+</html>
