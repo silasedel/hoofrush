@@ -327,16 +327,30 @@ const defaultOutfit = () => ({ helmet: WARD.helmet[1], jacket: WARD.jacket[0], p
 let outfit = Object.assign(defaultOutfit(), JSON.parse(localStorage.getItem('hr_outfit') || '{}'));
 function std(c, r = 0.7) { return new THREE.MeshStandardMaterial({ color: c, roughness: r }); }
 let humanProto = null, humanScale = 1, hipsY = 0;
-const POSE = { 'mixamorigSpine': [0.28, 0, 0], 'mixamorigLeftUpLeg': [-1.25, 0, -0.42], 'mixamorigRightUpLeg': [-1.25, 0, 0.42], 'mixamorigLeftLeg': [1.55, 0, 0], 'mixamorigRightLeg': [1.55, 0, 0],
-  'mixamorigLeftArm': [0.9, 0, -0.9], 'mixamorigRightArm': [0.9, 0, 0.9], 'mixamorigLeftForeArm': [0, 0, -0.9], 'mixamorigRightForeArm': [0, 0, 0.9], 'mixamorigHead': [-0.25, 0, 0] };
+const POSE = {
+  'mixamorigSpine': [0.2, 0, 0],
+  'mixamorigLeftUpLeg': [-0.97, 0.02, 0.34], 'mixamorigRightUpLeg': [-0.97, -0.02, -0.34],
+  'mixamorigLeftLeg': [-1.12, 0, 0], 'mixamorigRightLeg': [-1.12, 0, 0],
+  'mixamorigLeftArm': [0.95, 0.15, 1.09], 'mixamorigRightArm': [0.95, -0.15, -1.09],
+  'mixamorigLeftForeArm': [0, 0, 0.64], 'mixamorigRightForeArm': [0, 0, -0.64],
+  'mixamorigHead': [-0.1, 0, 0] };
 function makeHuman(o) {
   const r = new THREE.Group(); const m = SkeletonUtils.clone(humanProto); m.scale.setScalar(humanScale);
   let head = null;
-  m.traverse(n => { if (n.isMesh) { n.castShadow = true; n.frustumCulled = false; n.material = n.material.clone(); n.material.color.set(o.jacket).lerp(new THREE.Color('#ffffff'), 0.55); } if (n.isBone && POSE[n.name]) { const [x, y, z] = POSE[n.name]; n.rotation.x += x; n.rotation.y += y; n.rotation.z += z; } if (n.name === 'mixamorigHeadTop_End') head = n; if (n.name === 'mixamorigHead' && !head) head = n; });
+  m.traverse(n => { if (n.isMesh) { n.castShadow = true; n.frustumCulled = false; n.material = n.material.clone(); n.material.color.set(o.jacket).lerp(new THREE.Color("#ffffff"), 0.72); } if (n.isBone && POSE[n.name]) { const [x, y, z] = POSE[n.name]; n.rotation.x += x; n.rotation.y += y; n.rotation.z += z; } if (n.name === 'mixamorigHeadTop_End') head = n; if (n.name === 'mixamorigHead' && !head) head = n; });
   m.position.y = -hipsY; r.add(m);
   // riding helmet on head bone
   const hb = m.getObjectByName('mixamorigHead');
-  if (hb) { const hel = new THREE.Mesh(new THREE.SphereGeometry(0.135, 20, 12, 0, Math.PI * 2, 0, Math.PI / 1.8), std(o.helmet, 0.25)); hel.scale.setScalar(1 / humanScale); hel.position.set(0, 0.12 / humanScale, 0.01 / humanScale); const brim = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.02, 0.09), std(o.helmet, 0.25)); brim.position.set(0, 0.0, 0.14); hel.add(brim); hel.castShadow = true; hb.add(hel); }
+  if (hb) {
+    m.updateMatrixWorld(true); const ws = new THREE.Vector3(); hb.getWorldScale(ws); const k = 1 / ws.x;
+    const hel = new THREE.Group();
+    const shell = new THREE.Mesh(new THREE.SphereGeometry(0.13, 28, 16, 0, Math.PI * 2, 0, Math.PI / 1.85), new THREE.MeshPhysicalMaterial({ color: o.helmet, roughness: 0.35, clearcoat: 0.8, clearcoatRoughness: 0.2 }));
+    shell.scale.set(1.05, 1, 1.12); shell.castShadow = true; hel.add(shell);
+    const peak = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.12, 0.014, 20, 1, false, -Math.PI / 2, Math.PI), std('#111', 0.4)); peak.position.set(0, -0.005, 0.07); peak.rotation.x = 0.15; hel.add(peak);
+    const vent = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.01, 0.22), new THREE.MeshStandardMaterial({ color: 0xd8d8e0, metalness: 0.9, roughness: 0.25 })); vent.position.set(0, 0.128, 0); hel.add(vent);
+    const harness = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.008, 6, 20, Math.PI), std('#111')); harness.rotation.set(0, Math.PI / 2, Math.PI); harness.position.set(0, -0.02, 0.0); hel.add(harness);
+    hel.scale.setScalar(k); hel.position.set(0, 0.13 * k, -0.005 * k); hb.add(hel);
+  }
   r.userData = {}; return r;
 }
 function makeRider(o) {
@@ -376,10 +390,10 @@ function makeHorse(colorHex, isMe, o = outfit) {
   const saddle = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.3, 0.1, 14, 1, false), std('#3b2416', 0.45));
   saddle.scale.z = 1.3; saddle.position.y = 0.05; pad.add(saddle);
   pad.position.set(0, 1.47, 0.12); pad.castShadow = true; g.add(pad);
-  const rider = makeRider(o); rider.position.set(0, 1.62, 0.05); g.add(rider); g.userData.riderY = humanProto ? 1.55 : 1.62;
+  const rider = makeRider(o); rider.position.set(0, 1.62, 0.05); g.add(rider); g.userData.riderY = humanProto ? 1.66 : 1.62;
   const mixer = new THREE.AnimationMixer(mesh);
   const act = mixer.clipAction(horseClip); act.play(); act.time = Math.random();
-  g.userData = { mixer, pad, mesh, rider, phase: Math.random() * 6, riderY: humanProto ? 1.55 : 1.62 };
+  g.userData = { mixer, pad, mesh, rider, phase: Math.random() * 6, riderY: humanProto ? 1.66 : 1.62 };
   scene.add(g);
   return g;
 }
@@ -978,7 +992,7 @@ new GLTFLoader().load('models/Horse.glb', gltf => {
   const size = box.getSize(new THREE.Vector3());
   horseScale = 2.3 / size.y; horseYOff = -box.min.y * horseScale;
   window.__horseInfo = { size: size.toArray(), min: box.min.toArray(), rot: horseProto.rotation.toArray() };
-  if (false) new GLTFLoader().load('models/Michelle.glb', h => { try {
+  new GLTFLoader().load('models/Michelle.glb', h => { try {
     humanProto = h.scene; humanProto.updateMatrixWorld(true);
     const hb = new THREE.Box3().setFromObject(humanProto); humanScale = 1.6 / hb.getSize(new THREE.Vector3()).y;
     const hips = humanProto.getObjectByName('mixamorigHips'); const hp = new THREE.Vector3(); hips.getWorldPosition(hp); hipsY = (hp.y - hb.min.y) * humanScale;
