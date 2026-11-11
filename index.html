@@ -49,18 +49,18 @@ input::placeholder{color:#6b4fa0}
 #hud.on{display:block}
 #timer,#stats{display:none!important}
 #timer{position:absolute;top:16px;left:50%;transform:translateX(-50%);padding:8px 16px;font-family:'Press Start 2P';font-size:20px;color:var(--pac)}
-#qbox{position:absolute;top:64px;left:50%;transform:translate(-50%,-260%);width:min(820px,94vw);text-align:center;transition:transform .45s cubic-bezier(.3,1.6,.5,1)}#qbox.down{transform:translate(-50%,0)}#qopts{display:none!important}
-#qkind{font-family:'Press Start 2P';font-size:11px;color:var(--bg);background:var(--cyan);display:inline-block;padding:5px 8px;margin-bottom:8px}
+#qbox{position:absolute;top:12px;left:50%;transform:translate(-50%,-260%);width:min(640px,calc(100vw - 480px));min-width:300px;text-align:center;transition:transform .45s cubic-bezier(.3,1.6,.5,1)}#qbox.down{transform:translate(-50%,0)}#qopts{display:none!important}
+#qkind{font-family:'Press Start 2P';font-size:9px;color:var(--bg);background:var(--cyan);display:inline-block;padding:5px 8px;margin-bottom:8px}
 #qkind.survey{background:var(--pink)}
-#qtext{padding:12px 18px;font-size:clamp(26px,3.4vw,38px);color:#fff;line-height:1}
+#qtext{padding:10px 16px;font-size:clamp(24px,2.8vw,34px);color:#fff;line-height:1}
 #qopts{display:flex;gap:12px;margin-top:14px}
 .opt{flex:1;padding:8px;font-size:clamp(22px,2.8vw,30px);color:#fff;box-shadow:inset -3px -3px 0 rgba(0,0,0,.3),4px 4px 0 #000}
 .o0{background:#e0306a}.o1{background:#2d6cff}.o2{background:#e8b400;color:#1a0b2e}
-.qhint{font-size:20px;margin-top:8px;color:var(--hi);text-shadow:2px 2px 0 #000}
+.qhint{font-size:17px;margin-top:6px;color:var(--hi);text-shadow:2px 2px 0 #000}
 #stats{position:absolute;top:16px;left:16px;padding:10px 14px;font-size:24px;line-height:1.15}
 #place{font-family:'Press Start 2P';font-size:22px;color:var(--pac);margin-bottom:6px}
 #coins{color:#ff9d2e}
-#board{position:absolute;top:16px;right:16px;padding:10px 14px;min-width:200px;font-size:22px}
+#board{position:absolute;top:16px;right:16px;padding:8px 12px;min-width:170px;max-width:210px;font-size:19px}
 #board div{display:flex;justify-content:space-between;gap:14px}
 #board .me{color:var(--pac)}
 #shopwrap{display:none !important;position:absolute;bottom:14px;left:50%;transform:translateX(-50%);text-align:center}
