@@ -19,13 +19,13 @@ canvas#c{position:fixed;inset:0;width:100%;height:100%;display:block}
 .screen.on{display:flex}
 .card{padding:30px 32px;width:min(460px,92vw);text-align:center}
 .logo{font-family:'Press Start 2P';font-size:clamp(28px,6vw,44px);color:var(--pac);text-shadow:4px 4px 0 var(--pink),8px 8px 0 #4a1a8a;line-height:1.15}
-.tag{font-size:22px;color:var(--edge);margin:14px 0 18px}
+.tag{font-size:22px;color:var(--edge);margin:16px 0 4px}
 .pac{height:28px;position:relative;margin:4px auto 10px;width:260px;overflow:hidden}
 .pac .man{position:absolute;left:0;top:2px;width:24px;height:24px;border-radius:50%;background:var(--pac);animation:run 4s steps(40) infinite}
 .pac .man::after{content:'';position:absolute;right:-1px;top:6px;border:6px solid transparent;border-right:13px solid var(--panel);animation:chomp .25s steps(2) infinite}
 .pac .dots{position:absolute;inset:12px 0 0 30px;height:4px;background:repeating-linear-gradient(90deg,var(--hi) 0 4px,transparent 4px 22px)}
 @keyframes run{from{left:-24px}to{left:260px}}@keyframes chomp{50%{border-width:0;border-right-width:0}}
-label{display:block;font-family:'Press Start 2P';font-size:10px;color:var(--cyan);text-align:left;margin:10px 0 6px}
+label{display:block;font-family:'Press Start 2P';font-size:10px;line-height:1.5;color:var(--cyan);text-align:left;margin:18px 0 8px}
 input{width:100%;font-family:'VT323';font-size:28px;padding:8px 12px;background:var(--bg);color:var(--pac);border:none;outline:none;box-shadow:0 0 0 3px var(--edge);text-align:center}
 input:focus{box-shadow:0 0 0 3px var(--pac)}
 input::placeholder{color:#6b4fa0}
@@ -82,7 +82,7 @@ input::placeholder{color:#6b4fa0}
 .row2{display:flex;justify-content:space-between;padding:8px 12px;margin:8px 0;font-size:26px;background:var(--panel2)}
 .row2.first{background:var(--pac);color:var(--bg)}
 #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:50;background:var(--bg);font-family:'Press Start 2P';font-size:16px;color:var(--pac)}
-#pwPick{display:flex;flex-wrap:wrap;gap:6px}#pwPick button{font-family:'VT323';font-size:20px;padding:4px 8px;border:none;background:var(--panel2);color:var(--hi);cursor:pointer;box-shadow:2px 2px 0 #000}#pwPick button.sel{background:var(--green);color:var(--bg)}
+#pwPick{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}#pwPick button{font-family:'VT323';font-size:21px;padding:8px 6px;border:none;background:var(--panel2);color:var(--hi);cursor:pointer;box-shadow:2px 2px 0 #000}#pwPick button.sel{background:var(--green);color:var(--bg)}
 .opts{display:flex;gap:8px;flex-wrap:wrap}.opts button{flex:1;font-family:'Press Start 2P';font-size:10px;padding:10px 6px;border:none;background:var(--panel2);color:var(--hi);cursor:pointer;box-shadow:3px 3px 0 #000}.opts button.sel{background:var(--pac);color:var(--bg)}
 #matchT{position:fixed;top:16px;left:16px;z-index:30;display:none;padding:8px 12px;font-family:'Press Start 2P';font-size:14px;color:var(--pac)}
 #muteBtn{position:fixed;bottom:14px;right:14px;z-index:30;font-family:'Press Start 2P';font-size:10px;padding:8px;background:var(--panel);color:var(--hi);border:none;box-shadow:0 0 0 3px var(--edge);cursor:pointer}
@@ -97,14 +97,13 @@ input::placeholder{color:#6b4fa0}
 <div id="menu" class="screen">
   <div class="card pbox">
     <div class="logo">HOOF<br>RUSH</div>
-    <div class="pac"><div class="dots"></div><div class="man"></div></div>
-    <div class="tag">Race. Jump. Ride through the right answer.</div>
+        <div class="tag">Race. Jump. Ride through the right answer.</div>
     <label>YOUR HORSE'S NAME</label>
     <input id="name" maxlength="12" placeholder="e.g. Midnight">
     <button class="btn yel" id="createBtn">CREATE GAME</button>
     <div class="row"><div style="flex:1"><label>GAME CODE</label><input id="joinCode" maxlength="4" placeholder="ABCD"></div><button class="btn cyn" id="joinBtn">JOIN</button></div>
-    <label>SECRET PASSWORD (others try to guess it!)</label><div id="pwPick"></div>
-    <div class="row"><button class="btn pnk" id="wardBtn" style="flex:1">WARDROBE</button><button class="btn dim" id="soloBtn" style="flex:1">PRACTICE</button></div>
+    <label>PICK YOUR SECRET PASSWORD</label><div id="pwPick"></div>
+    <div class="row" style="margin-top:8px"><button class="btn pnk" id="wardBtn" style="flex:1">WARDROBE</button><button class="btn dim" id="soloBtn" style="flex:1">PRACTICE</button></div>
     <div class="err" id="menuErr"></div>
   </div>
 </div>
@@ -161,6 +160,6 @@ input::placeholder{color:#6b4fa0}
 
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
-<script type="module" src="game.js"></script>
+<script type="module" src="game.js?v=1794364990"></script>
 </body>
 </html>

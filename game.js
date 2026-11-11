@@ -2,13 +2,16 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { CATEGORIES } from './questions.js';
+import { CATEGORIES } from './questions.js?v=1794364990';
 
 // ---------------- CONFIG ----------------
 const DURATION = 150;           // seconds per race
 const LANES = [4.5, 1.5, -1.5, -4.5];   // screen left -> right
 const GATE_GAP = 170;
-const FINISH = 470, ROUNDS = 4, PASSWORDS = ['DRAGON', 'PIZZA', 'GALAXY', 'UNICORN', 'TACO', 'NINJA', 'COOKIE', 'ROCKET'];
+const FINISH = 470, ROUNDS = 4;
+const PW_A = ['Dragon', 'Unicorn', 'Taco', 'Pony', 'Skibidi', 'Sigma', 'Glitter', 'Nugget', 'Pickle', 'Banana', 'Rizzy', 'Cowboy', 'Waffle', 'Noodle', 'Turbo', 'Sparkle', 'Goblin', 'Potato', 'Mango', 'Carrot'];
+const PW_B = ['Lover', 'Fart', 'Ninja', 'Queen', 'King', 'Slayer', 'Toes', 'Blaster', 'Goat', 'Muncher', 'Boss', 'Gremlin', 'Rider', 'Wizard', 'Bandit', 'Sauce', 'Hooves', 'Gang'];
+function genPw() { const a = PW_A[Math.floor(Math.random() * PW_A.length)], b = PW_B[Math.floor(Math.random() * PW_B.length)], n = Math.floor(Math.random() * 999); return Math.random() < 0.3 ? `${a}${n % 10}${b}` : `${a}${b}${n}`; }
 const BASE_SPEED = 16;
 const PREFIX = 'hoofrush-v1-';
 const COLORS = ['#ff4d6d', '#3a86ff', '#22c06b', '#ffbe0b', '#9b5de5', '#ff8a2b', '#00bbf9', '#f15bb5'];
@@ -656,7 +659,7 @@ function hostHandle(fromId, d) {
 function clientHandle(d) {
   if (d.t === 'you') { me.id = d.id; }
   else if (d.t === 'lobby') { players = d.players; renderLobby(); }
-  else if (d.t === 'start') { settings = d.settings || settings; matchEnd = Date.now() + d.remain; startRace(d.seed, d.players, d.gateQs); }
+  else if (d.t === 'start') { settings = d.settings || settings; matchEnd = Date.now() + d.remain; startRace(d.seed, d.players, d.gateQs, d.round); }
   else if (d.t === 'settings') { settings = d.settings; renderLobby(); }
   else if (d.t === 'feed') { feed(d.text); }
   else if (d.t === 'hack') { startHackPhase(d); }
@@ -692,7 +695,6 @@ async function createGame() {
       $('lobbyCode').textContent = code;
       $('lobbyLink').textContent = `Others: open this site → enter code ${code}`;
       $('menuErr').textContent = ''; mode = 'lobby'; renderLobby(); show('lobby');
-      history.replaceState(null, '', '?code=' + code);
       return;
     } catch (e) { if (e.type !== 'unavailable-id') { $('menuErr').textContent = 'Could not reach game server: ' + e.type; return; } }
   }
@@ -725,7 +727,7 @@ function saveName() {
   const n = $('name').value.trim(); if (!n) { $('menuErr').textContent = 'Type your name first!'; $('name').focus(); return false; }
   me.name = n; localStorage.setItem('hr_name', n); return true;
 }
-let round = 0, finCount = 0, raceTimer = null, myPw = localStorage.getItem('hr_pw') || PASSWORDS[Math.floor(Math.random() * PASSWORDS.length)];
+let round = 0, finCount = 0, raceTimer = null, myPw = '', pwChoices = [genPw(), genPw(), genPw(), genPw()]; myPw = pwChoices[0];
 function setQ(qs, rd) { QORDER = shuffle(QUESTIONS.slice(), rng(qs)); qOffset = ((rd - 1) * 4) % QORDER.length; }
 function toPlayer(id, msg) { if (id === me.id) clientHandle(msg); else conns.get(id)?.send(msg); }
 let settings = { cat: localStorage.getItem('hr_cat') || 'horse', mins: +(localStorage.getItem('hr_mins') || 5) }, matchEnd = 0;
@@ -748,7 +750,7 @@ function nextRound() {
 }
 function hostEndRace() {
   clearTimeout(raceTimer);
-  const opts = {}; for (const id in players) opts[id] = shuffle([players[id].password, ...shuffle(PASSWORDS.filter(w => w !== players[id].password), Math.random).slice(0, 3)], Math.random);
+  const opts = {}; for (const id in players) opts[id] = shuffle([players[id].password, genPw(), genPw(), genPw()], Math.random);
   const q = takeQuestions(1)[0];
   const m = { t: 'hack', players, opts, q }; broadcast(m); clientHandle(m);
   // bots occasionally hack too
@@ -791,7 +793,8 @@ function showBoard(d) {
 
 // ---------------- RACE ----------------
 function removeGhost(id) { if (ghosts[id]) { scene.remove(ghosts[id].g); delete ghosts[id]; } }
-function startRace(seed, plist, gateQs) {
+function startRace(seed, plist, gateQs, rd) {
+  if (rd === 1 || me.speedMult == null) me.speedMult = 1;
   raceSeed = seed; players = plist || players;
   clearCourse(); course = buildCourse(seed, gateQs); clearPrints();
   Object.keys(ghosts).forEach(removeGhost);
@@ -842,12 +845,12 @@ function triggerEvent(e) {
     const lane = laneIndexOf(me.x);
     if (lane === e.correct) {
       const gain = 10 * (1 + me.multLvl);
-      me.coins += gain; me.correct++; effects.boost = 2.6; sfx.good();
-      toast(`CORRECT! +${gain}`, '#4dff8a');
+      me.coins += gain; me.correct++; me.speedMult *= 1.1; effects.boost = 0.6; sfx.good();
+      toast(`CORRECT! SPEED ${Math.round(me.speedMult * 100)}%`, '#4dff8a');
       e.banners[lane].material.emissive.set(0x22ff88); e.banners[lane].material.emissiveIntensity = 0.6;
     } else {
-      effects.slow = 1.3; effects.slowMult = 0.45; sfx.bad();
-      toast(`WRONG: ${e.opts[e.correct]}`, '#ff4060');
+      me.speedMult *= 0.9; sfx.bad();
+      toast(`WRONG! SPEED ${Math.round(me.speedMult * 100)}%`, '#ff4060');
       e.banners[e.correct].material.emissive.set(0x22ff88); e.banners[e.correct].material.emissiveIntensity = 0.6;
     }
     e.done = true; renderShop();
@@ -910,8 +913,8 @@ function tick() {
     const elapsed = now - raceStart; const remain = 45 - elapsed;
     $('timer').textContent = fmtTime(remain);
     for (const k of ['boost', 'slow', 'mud']) effects[k] = Math.max(0, effects[k] - dt);
-    speed = BASE_SPEED + me.speedLvl * 1.6;
-    if (effects.boost > 0) speed *= 1.5 + me.boostLvl * 0.12;
+    speed = BASE_SPEED * me.speedMult;
+    
     if (effects.slow > 0) speed *= effects.slowMult;
     if (effects.mud > 0) speed *= 0.5;
     horseSpeed = speed; const prevZ = me.z; me.z += speed * dt;
@@ -1018,11 +1021,11 @@ $('soloBtn').onclick = () => {
   if (!saveName()) return;
   solo = true; isHost = true; me.id = 'host';
   players = { host: { name: me.name, color: COLORS[0], password: myPw, score: 0, outfit } };
-  [['Thunder', '#3a86ff', 0.97], ['Daisy', '#22c06b', 1.02], ['Biscuit', '#ffbe0b', 1.06]].forEach(([name, color, skill], i) => players['bot' + i] = { bot: true, lane0: i + 1, name, color, skill, z: 0, x: LANES[i + 1], y: 0, score: 0, password: PASSWORDS[Math.floor(Math.random() * PASSWORDS.length)] });
+  [['Thunder', '#3a86ff', 0.97], ['Daisy', '#22c06b', 1.02], ['Biscuit', '#ffbe0b', 1.06]].forEach(([name, color, skill], i) => players['bot' + i] = { bot: true, lane0: i + 1, name, color, skill, z: 0, x: LANES[i + 1], y: 0, score: 0, password: genPw() });
   settings.mins = Math.min(settings.mins, 3); hostStart();
 };
-function buildPw() { $('pwPick').innerHTML = PASSWORDS.map(w => `<button class="${w === myPw ? 'sel' : ''}">${w}</button>`).join(''); }
-$('pwPick').onclick = e => { const b = e.target.closest('button'); if (!b) return; myPw = b.textContent; localStorage.setItem('hr_pw', myPw); buildPw(); };
+function buildPw() { $('pwPick').innerHTML = pwChoices.map(w => `<button class="${w === myPw ? 'sel' : ''}">${w}</button>`).join(''); }
+$('pwPick').onclick = e => { const b = e.target.closest('button'); if (!b) return; myPw = b.textContent; buildPw(); };
 buildPw();
 $('startBtn').onclick = () => { if (isHost) hostStart(); };
 $('setCat').onclick = e => { const b = e.target.closest('button'); if (!b || !isHost) return; settings.cat = b.dataset.v; localStorage.setItem('hr_cat', settings.cat); broadcast({ t: 'settings', settings }); renderLobby(); };
@@ -1034,7 +1037,7 @@ addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); ca
 
 // ---------------- BOOT ----------------
 $('name').value = localStorage.getItem('hr_name') || '';
-const qc = new URLSearchParams(location.search).get('code'); if (qc) $('joinCode').value = qc.toUpperCase();
+$('joinCode').value = ''; if (location.search) history.replaceState(null, '', location.pathname);
 function buildWardrobe() {
   for (const k of Object.keys(WARD)) {
     const el = $('sw-' + k);
