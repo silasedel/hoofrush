@@ -2,10 +2,10 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { RIDER_POSE, reshapeRider, RIDER_Y, HELMET } from './riderfix.js?v=1794367675';
+import { RIDER_POSE, reshapeRider, RIDER_Y, HELMET } from './riderfix.js?v=1794368796';
 import { ParametricGeometry } from 'three/addons/geometries/ParametricGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { CATEGORIES } from './questions.js?v=1794367675';
+import { CATEGORIES } from './questions.js?v=1794368796';
 
 // ---------------- CONFIG ----------------
 const DURATION = 150;           // seconds per race
@@ -1131,12 +1131,12 @@ function tick() {
   }
 
   // player physics
-  { const tgt = LANES[me.lane] * 0.85 + aimX * 0.15; xVel += (tgt - me.x) * 140 * dt; xVel *= Math.exp(-dt * 11); me.x += xVel * dt; }
+  { const tgt = LANES[me.lane] * 0.85 + aimX * 0.15; xVel += (tgt - me.x) * 90 * dt; xVel *= Math.exp(-dt * 17); me.x += xVel * dt; }
   me.vy -= 26 * dt; me.y = Math.max(0, me.y + me.vy * dt); if (me.y === 0) { me.vy = Math.max(0, me.vy); if (airborne) { airborne = false; sfx.land(); } }
 
   if (horse) {
     horse.position.set(me.x, me.y - (stumbleT > 0 ? Math.sin((0.8 - stumbleT) / 0.8 * Math.PI) * 0.25 : 0), me.z);
-    horse.rotation.y = clamp(xVel * 0.05, -0.4, 0.4); horse.rotation.z = clamp(-xVel * 0.02, -0.15, 0.15);
+    horse.rotation.y = clamp(xVel * 0.025, -0.18, 0.18); horse.rotation.z = clamp(-xVel * 0.008, -0.05, 0.05);
     spookT = Math.max(0, spookT - dt); stumbleT = Math.max(0, stumbleT - dt); horse.rotation.x = stumbleT > 0 ? Math.sin((0.8 - stumbleT) / 0.8 * Math.PI) * 0.32 : spookT > 0 ? -Math.sin((0.9 - spookT) / 0.9 * Math.PI) * 0.55 : (me.y > 0 ? -clamp(me.vy * 0.04, -0.35, 0.35) : 0);
     { const ud = horse.userData; const moving = mode === 'race'; ud.phase += dt * (moving ? speed / BASE_SPEED : 0) * 9; ud.rider.position.y = ud.riderY + (moving ? Math.abs(Math.sin(ud.phase)) * 0.07 : 0); ud.rider.rotation.x = me.y > 0 ? 0.25 : moving ? Math.sin(ud.phase) * 0.04 : 0; }
     followBack(horse);
