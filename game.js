@@ -903,12 +903,12 @@ new GLTFLoader().load('models/Horse.glb', gltf => {
   const size = box.getSize(new THREE.Vector3());
   horseScale = 2.3 / size.y; horseYOff = -box.min.y * horseScale;
   window.__horseInfo = { size: size.toArray(), min: box.min.toArray(), rot: horseProto.rotation.toArray() };
-  new GLTFLoader().load('models/Michelle.glb', h => { try {
+  if (false) new GLTFLoader().load('models/Michelle.glb', h => { try {
     humanProto = h.scene; humanProto.updateMatrixWorld(true);
     const hb = new THREE.Box3().setFromObject(humanProto); humanScale = 1.6 / hb.getSize(new THREE.Vector3()).y;
     const hips = humanProto.getObjectByName('mixamorigHips'); const hp = new THREE.Vector3(); hips.getWorldPosition(hp); hipsY = (hp.y - hb.min.y) * humanScale;
     rebuildMyHorse(); console.log('human ok', humanScale, hipsY); } catch (e) { console.error('human err', e.message, e.stack); }
   }, undefined, e => console.error('human fail', e));
   rebuildMyHorse();
-  $('loading').remove(); show('menu'); tick(); window.__tick = tick;
+  $('loading').remove(); show('menu'); tick(); window.__tick = tick; window.__pose = POSE; window.__rebuild = rebuildMyHorse; window.__h = () => horse;
 });
