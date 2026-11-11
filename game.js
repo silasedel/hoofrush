@@ -2,10 +2,10 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { RIDER_POSE, reshapeRider, RIDER_Y, HELMET } from './riderfix.js?v=1794367214';
+import { RIDER_POSE, reshapeRider, RIDER_Y, HELMET } from './riderfix.js?v=1794367675';
 import { ParametricGeometry } from 'three/addons/geometries/ParametricGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { CATEGORIES } from './questions.js?v=1794367214';
+import { CATEGORIES } from './questions.js?v=1794367675';
 
 // ---------------- CONFIG ----------------
 const DURATION = 150;           // seconds per race
@@ -631,6 +631,7 @@ function buildCourse(seed, gateQs) {
       const lane = Math.floor(r() * 4); for (let k = 0; k < n; k++) ev.push({ type: 'carrot', z: z + start + k * 3.5, lane });
     }
   }
+  if (location.hash === '#spooktest') { ev.push({ type: 'spook', z: 22, lane: 1, kind: 0 }, { type: 'spook', z: 22, lane: 2, kind: 1 }); }
   ev.push({ type: 'finish', z: FINISH });
   ev.sort((a, b) => a.z - b.z);
   return ev;
@@ -706,11 +707,11 @@ function spawnEvent(e) {
       for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; const rib = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 4), std('#222')); rib.position.set(Math.cos(a) * 0.98, 0.6, Math.sin(a) * 0.98); um.add(rib); }
       const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.9, 8), new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.8, roughness: 0.3 })); shaft.position.y = 0.2; um.add(shaft);
       const hook = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.028, 8, 16, Math.PI), std('#3a2414')); hook.position.y = -0.75; hook.rotation.z = Math.PI; um.add(hook);
-      um.position.set(x, 1.4, 0); um.rotation.set(-1.05, 0, 0); g.add(um); e.wobble = um;
+      um.rotation.set(-0.55, 0.5, 1.3); um.position.set(x, 0, 0); um.updateMatrixWorld(true); { const bb = new THREE.Box3().setFromObject(um); um.position.y = -bb.min.y + 0.01; } g.add(um); e.wobble = um; e.wobbleBase = um.rotation.z;
     } else { // bunch of party balloons tied to a post
       const cols = [0xff3b5c, 0xffd23f, 0x3df5ff, 0x9b5de5, 0x4dff8a, 0xff8a2b];
       const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 1.1, 10), std('#6b4a2b')); post.position.set(x, 0.55, 0); post.castShadow = true; g.add(post);
-      const bunch = new THREE.Group(); bunch.position.set(x, 1.1, 0);
+      const bunch = new THREE.Group(); bunch.position.set(x, 1.1, 0); bunch.scale.setScalar(1.35);
       for (let k = 0; k < 6; k++) {
         const b = new THREE.Mesh(new THREE.SphereGeometry(0.3, 20, 14), new THREE.MeshPhysicalMaterial({ color: cols[k], roughness: 0.15, clearcoat: 1, clearcoatRoughness: 0.1 }));
         b.scale.y = 1.2; const a = k / 6 * Math.PI * 2; b.position.set(Math.cos(a) * 0.45, 1.3 + (k % 2) * 0.35, Math.sin(a) * 0.3); b.castShadow = true; bunch.add(b);
@@ -719,7 +720,6 @@ function spawnEvent(e) {
       }
       g.add(bunch); e.flap = bunch;
     }
-    const warn = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.12), new THREE.MeshBasicMaterial({ color: 0xffe12b })); warn.rotation.x = -Math.PI / 2; warn.position.set(x, 0.05, 1.6); g.add(warn);
   } else if (e.type === 'carrot') {
     const holder = makeCarrot(); holder.position.set(LANES[e.lane], 1.1, 0);
     g.add(holder); e.holder = holder;
@@ -1138,7 +1138,7 @@ function tick() {
     horse.position.set(me.x, me.y - (stumbleT > 0 ? Math.sin((0.8 - stumbleT) / 0.8 * Math.PI) * 0.25 : 0), me.z);
     horse.rotation.y = clamp(xVel * 0.05, -0.4, 0.4); horse.rotation.z = clamp(-xVel * 0.02, -0.15, 0.15);
     spookT = Math.max(0, spookT - dt); stumbleT = Math.max(0, stumbleT - dt); horse.rotation.x = stumbleT > 0 ? Math.sin((0.8 - stumbleT) / 0.8 * Math.PI) * 0.32 : spookT > 0 ? -Math.sin((0.9 - spookT) / 0.9 * Math.PI) * 0.55 : (me.y > 0 ? -clamp(me.vy * 0.04, -0.35, 0.35) : 0);
-    { const ud = horse.userData; ud.phase += dt * (mode === 'race' ? speed / BASE_SPEED : 0.3) * 9; ud.rider.position.y = ud.riderY + Math.abs(Math.sin(ud.phase)) * 0.07; ud.rider.rotation.x = me.y > 0 ? 0.25 : Math.sin(ud.phase) * 0.04; }
+    { const ud = horse.userData; const moving = mode === 'race'; ud.phase += dt * (moving ? speed / BASE_SPEED : 0) * 9; ud.rider.position.y = ud.riderY + (moving ? Math.abs(Math.sin(ud.phase)) * 0.07 : 0); ud.rider.rotation.x = me.y > 0 ? 0.25 : moving ? Math.sin(ud.phase) * 0.04 : 0; }
     followBack(horse);
     const legRate = mode === 'race' ? (speed / BASE_SPEED) * 1.55 : (mode === 'menu' || mode === 'wardrobe' || mode === 'lobby') ? 0.35 : 0;
     horse.userData.mixer.update(dt * legRate);
@@ -1152,19 +1152,19 @@ function tick() {
     gh.g.position.x = lerp(gh.g.position.x, p.x || 0, k);
     gh.g.position.y = lerp(gh.g.position.y, p.y || 0, k);
     gh.g.position.z = mode === 'race' ? lerp(gh.g.position.z, (p.z || 0) + (solo ? 0 : speed * 0.1), k) : (p.z || 0);
-    { const ud = gh.g.userData; ud.phase += dt * 9; ud.rider.position.y = ud.riderY + Math.abs(Math.sin(ud.phase)) * 0.07; }
+    { const ud = gh.g.userData; const mv = mode === 'race'; ud.phase += dt * (mv ? 9 : 0); ud.rider.position.y = ud.riderY + (mv ? Math.abs(Math.sin(ud.phase)) * 0.07 : 0); }
     followBack(gh.g);
     gh.g.userData.mixer.update(dt * (mode === 'race' ? 1.55 * (p.mult || 1) : 0));
   }
   // course anim
   for (const e of active) {
-    if (e.wobble) e.wobble.rotation.z = Math.sin(now * 2.2 + e.z) * 0.12;
+    if (e.wobble) e.wobble.rotation.z = e.wobbleBase + Math.sin(now * 2.2 + e.z) * 0.04;
     if (e.flap) { e.flap.rotation.z = Math.sin(now * 1.7 + e.z) * 0.12; e.flap.rotation.x = Math.sin(now * 1.3) * 0.08; }
     if (e.type === 'carrot' && e.holder) { e.holder.rotation.y += dt * 3; e.holder.position.y = 1.1 + Math.sin(now * 4 + e.z) * 0.15; }
     if (e.type === 'fence' && e.knocked) { e.knocked = Math.min(1, e.knocked + dt * 2.5); e.poles.forEach((p, i) => { p.position.y = lerp([0.45, 0.85, 1.25][i], 0.08 + i * 0.12, e.knocked); p.position.z = e.knocked * (0.6 + i * 0.3); p.rotation.y = e.knocked * (i - 1) * 0.15; }); }
   }
   updateDust(dt);
-  { const run = mode === 'race' && !me.finished; if (run) gallopLoop(me.y === 0, speed / BASE_SPEED); else if (gallopNode) gallopLoop(false); }
+  if (mode === 'race' && me.y === 0) hoofbeat(now, speed);
   if (matchEnd) { const ms = Math.max(0, matchEnd - Date.now()); $('matchT').style.display = 'block'; $('matchT').textContent = '⏱ ' + fmtTime(ms / 1000); } else $('matchT').style.display = 'none';
   if (mode === 'race' && horse && me.y === 0) { printT -= dt; if (printT <= 0) { printT = 0.11; printSide = -printSide; addPrint(me.x + printSide * 0.22, me.z - 1.2); } }
 
