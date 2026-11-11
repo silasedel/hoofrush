@@ -4,13 +4,62 @@
 import * as THREE from 'three';
 
 // Additive euler deltas on top of the rest rotations (same format as POSE in game.js).
-export let RIDER_POSE = {};
+// Solved with IK for horse space: hands ~(+-0.09, 1.78, 0.42), knees ~(+-0.30, 1.42, 0.24),
+// ankles ~(+-0.37, 0.98, 0.15), thumbs up / fists closed, toes slightly out.
+export const RIDER_POSE = {
+  'mixamorigSpine': [0.12,  0,  0],
+  'mixamorigSpine1': [0.05,  0,  0],
+  'mixamorigNeck': [-0.05,  0,  0],
+  'mixamorigHead': [-0.12,  0,  0],
+  'mixamorigLeftArm': [0.995,  0.193,  0.898],
+  'mixamorigLeftForeArm': [-0.329,  -0.006,  1.122],
+  'mixamorigLeftHand': [0.125,  -0.949,  -0.644],
+  'mixamorigLeftHandThumb1': [0.225,  0.201,  -0.01],
+  'mixamorigLeftHandThumb2': [0.467,  0.033,  0.17],
+  'mixamorigLeftHandThumb3': [0.334,  -0.012,  0.222],
+  'mixamorigLeftHandIndex1': [1.224,  0.3,  0.204],
+  'mixamorigLeftHandIndex2': [1.316,  0.24,  0.309],
+  'mixamorigLeftHandIndex3': [-0.85,  0.109,  -0.239],
+  'mixamorigLeftHandMiddle1': [1.232,  0.218,  0.263],
+  'mixamorigLeftHandMiddle2': [1.24,  0.314,  0.44],
+  'mixamorigLeftHandMiddle3': [-0.793,  0.148,  -0.354],
+  'mixamorigLeftHandRing1': [1.237,  0.15,  0.304],
+  'mixamorigLeftHandRing2': [1.288,  0.272,  0.362],
+  'mixamorigLeftHandRing3': [-0.838,  0.121,  -0.268],
+  'mixamorigLeftHandPinky1': [1.24,  0.123,  0.324],
+  'mixamorigLeftHandPinky2': [1.319,  0.235,  0.303],
+  'mixamorigLeftHandPinky3': [-0.848,  0.11,  -0.246],
+  'mixamorigRightArm': [0.993,  -0.187,  -0.903],
+  'mixamorigRightForeArm': [-0.331,  0.01,  -1.121],
+  'mixamorigRightHand': [0.141,  0.925,  0.639],
+  'mixamorigRightHandThumb1': [0.228,  -0.2,  0.013],
+  'mixamorigRightHandThumb2': [0.469,  -0.031,  -0.166],
+  'mixamorigRightHandThumb3': [0.331,  0.011,  -0.227],
+  'mixamorigRightHandIndex1': [1.228,  -0.31,  -0.182],
+  'mixamorigRightHandIndex2': [1.299,  -0.258,  -0.343],
+  'mixamorigRightHandIndex3': [-0.833,  -0.122,  0.279],
+  'mixamorigRightHandMiddle1': [1.236,  -0.226,  -0.242],
+  'mixamorigRightHandMiddle2': [1.284,  -0.276,  -0.368],
+  'mixamorigRightHandMiddle3': [-0.836,  -0.124,  0.27],
+  'mixamorigRightHandRing1': [1.24,  -0.173,  -0.277],
+  'mixamorigRightHandRing2': [1.328,  -0.224,  -0.285],
+  'mixamorigRightHandRing3': [-0.858,  -0.101,  0.219],
+  'mixamorigRightHandPinky1': [1.245,  -0.111,  -0.314],
+  'mixamorigRightHandPinky2': [1.299,  -0.258,  -0.345],
+  'mixamorigRightHandPinky3': [-0.826,  -0.126,  0.296],
+  'mixamorigLeftUpLeg': [-1.011,  0.158,  0.674],
+  'mixamorigLeftLeg': [-1.114,  0.341,  0.048],
+  'mixamorigLeftFoot': [0.947,  -0.046,  -0.014],
+  'mixamorigRightUpLeg': [-1.011,  -0.165,  -0.672],
+  'mixamorigRightLeg': [-1.097,  -0.335,  -0.048],
+  'mixamorigRightFoot': [0.909,  0.046,  0.021],
+};
 
 // Rider group y in horse space (hips bone sits at rider group origin).
 export const RIDER_Y = 1.66;
 
 // Helmet placement in head-bone-normalized units (multiply by k = 1/headBoneWorldScale).
-export const HELMET = { pos: [0, 0.13, -0.005], scale: [1.05, 1, 1.12] };
+export const HELMET = { pos: [0, 0.112, -0.012], scale: [0.93, 0.9, 1.0] };
 
 const tmpM = new THREE.Matrix4();
 
@@ -98,8 +147,9 @@ function reshapeMesh(mesh) {
           disp.copy(q).multiplyScalar((nr / rad - 1) * blend);
         } else if (r.mode === 'foot') {
           // slim riding-boot foot: narrow sideways, lower the instep/toe box
-          const a = bp[bi]; disp.set((v.x - a.x) * -0.28, 0, 0);
-          if (q.y > 0) disp.y += -q.y * 0.3;
+          const a = bp[B(bones[bi].name.includes('Left') ? 'LeftFoot' : 'RightFoot')]; disp.set((v.x - a.x) * -0.3, 0, 0);
+          const top = v.y - 0.035; if (top > 0) disp.y -= top * 0.35; // lower the chunky sneaker instep
+          if (v.y < 0.02) disp.y += (0.02 - v.y) * 0.5; // thinner sole
         }
       }
       out.addScaledVector(disp, w);
@@ -111,7 +161,7 @@ function reshapeMesh(mesh) {
     if (hw > 0.05) {
       d.subVectors(v, skullC); const r = d.length();
       // skull ellipsoid radii (x, y, z)
-      const ex = 0.083, ey = 0.105, ez = 0.098;
+      const ex = 0.08, ey = 0.1, ez = 0.094;
       const e = Math.sqrt((d.x / ex) ** 2 + (d.y / ey) ** 2 + (d.z / ez) ** 2);
       const face = d.z > 0.035 && Math.abs(d.x) < 0.075 && d.y < 0.045; // keep the face as is
       if (e > 1 && !face) {
@@ -119,6 +169,8 @@ function reshapeMesh(mesh) {
         const f = THREE.MathUtils.lerp(1, k, Math.min(1, hw * 2));
         v.copy(skullC).addScaledVector(d, f);
       }
+      // flatten headphone cups / side hair against the head
+      if (!face && Math.abs(v.x - skullC.x) > 0.08) v.x = skullC.x + Math.sign(v.x - skullC.x) * (0.08 + (Math.abs(v.x - skullC.x) - 0.08) * 0.25);
     }
     pos.setXYZ(i, v.x, v.y, v.z);
   }

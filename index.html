@@ -52,7 +52,7 @@ input::placeholder{color:#6b4fa0}
 #qbox{position:absolute;top:12px;left:50%;transform:translate(-50%,-260%);width:min(640px,calc(100vw - 480px));min-width:300px;text-align:center;transition:transform .45s cubic-bezier(.3,1.6,.5,1)}#qbox.down{transform:translate(-50%,0)}#qopts{display:none!important}
 #qkind{font-family:'Press Start 2P';font-size:9px;color:var(--bg);background:var(--cyan);display:inline-block;padding:5px 8px;margin-bottom:8px}
 #qkind.survey{background:var(--pink)}
-#qtext{padding:10px 16px;font-size:clamp(24px,2.8vw,34px);color:#fff;line-height:1}
+#qtext{padding:14px 20px;font-size:clamp(30px,3.6vw,46px);color:#fff;line-height:1}
 #qopts{display:flex;gap:12px;margin-top:14px}
 .opt{flex:1;padding:8px;font-size:clamp(22px,2.8vw,30px);color:#fff;box-shadow:inset -3px -3px 0 rgba(0,0,0,.3),0 4px 0 #000}
 .o0{background:#e0306a}.o1{background:#2d6cff}.o2{background:#e8b400;color:#1a0b2e}
@@ -85,6 +85,8 @@ input::placeholder{color:#6b4fa0}
 #pwPick{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}#pwPick button{font-family:'VT323';font-size:21px;padding:8px 6px;border:none;background:var(--panel2);color:var(--hi);cursor:pointer;box-shadow:0 2px 0 #000}#pwPick button.sel{background:var(--green);color:var(--bg)}
 .opts{display:flex;gap:8px;flex-wrap:wrap}.opts button{flex:1;font-family:'Press Start 2P';font-size:10px;padding:10px 6px;border:none;background:var(--panel2);color:var(--hi);cursor:pointer;box-shadow:0 3px 0 #000}.opts button.sel{background:var(--pac);color:var(--bg)}
 #matchT{position:fixed;top:16px;left:16px;z-index:30;display:none;padding:8px 12px;font-family:'Press Start 2P';font-size:14px;color:var(--pac)}
+.hkHead{font-family:'Press Start 2P';font-size:16px;line-height:1.6;letter-spacing:1px;margin:14px 0 10px;text-shadow:3px 3px 0 #000}
+.hkGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px 12px;margin-top:6px}.hkGrid .btn{margin-top:0}
 #muteBtn{position:fixed;bottom:14px;right:14px;z-index:30;font-family:'Press Start 2P';font-size:10px;padding:8px;background:var(--panel);color:var(--hi);border:none;box-shadow:0 0 0 3px var(--edge);cursor:pointer}
 </style>
 </head>
@@ -148,7 +150,7 @@ input::placeholder{color:#6b4fa0}
 <div id="hud">
   <div id="mud"></div>
   <div id="timer" class="pbox">2:30</div>
-  <div id="qbox"><div id="qkind">QUIZ</div><div id="qtext" class="pbox"></div><div id="qopts"><div class="opt o0" id="op0"></div><div class="opt o1" id="op1"></div><div class="opt o2" id="op2"></div></div><div class="qhint">Ride through the gate with the right answer · mouse / ◀ ▶ to steer · SPACE jump</div></div>
+  <div id="qbox"><div id="qkind">QUIZ</div><div id="qtext" class="pbox"></div><div id="qopts"><div class="opt o0" id="op0"></div><div class="opt o1" id="op1"></div><div class="opt o2" id="op2"></div></div></div>
   <div id="stats" class="pbox"><div id="place">#1</div><div id="dist">0 m</div><div>CARROTS <span id="coins">0</span></div></div>
   <div id="board" class="pbox"></div>
   <div id="feed"></div>
@@ -160,6 +162,6 @@ input::placeholder{color:#6b4fa0}
 
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
-<script type="module" src="game.js?v=1794364990"></script>
+<script type="module" src="game.js?v=1794365946"></script>
 </body>
 </html>

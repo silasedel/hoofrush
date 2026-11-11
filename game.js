@@ -2,14 +2,15 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import { RIDER_POSE, reshapeRider, RIDER_Y, HELMET } from './riderfix.js?v=1794365946';
 import { ParametricGeometry } from 'three/addons/geometries/ParametricGeometry.js';
-import { CATEGORIES } from './questions.js?v=1794364990';
+import { CATEGORIES } from './questions.js?v=1794365946';
 
 // ---------------- CONFIG ----------------
 const DURATION = 150;           // seconds per race
 const LANES = [4.5, 1.5, -1.5, -4.5];   // screen left -> right
 const GATE_GAP = 170;
-const FINISH = 470, ROUNDS = 4;
+const FINISH = 420, ROUNDS = 4;
 const PW_A = ['Dragon', 'Unicorn', 'Taco', 'Pony', 'Skibidi', 'Sigma', 'Glitter', 'Nugget', 'Pickle', 'Banana', 'Rizzy', 'Cowboy', 'Waffle', 'Noodle', 'Turbo', 'Sparkle', 'Goblin', 'Potato', 'Mango', 'Carrot'];
 const PW_B = ['Lover', 'Fart', 'Ninja', 'Queen', 'King', 'Slayer', 'Toes', 'Blaster', 'Goat', 'Muncher', 'Boss', 'Gremlin', 'Rider', 'Wizard', 'Bandit', 'Sauce', 'Hooves', 'Gang'];
 function genPw() { const a = PW_A[Math.floor(Math.random() * PW_A.length)], b = PW_B[Math.floor(Math.random() * PW_B.length)], n = Math.floor(Math.random() * 999); return Math.random() < 0.3 ? `${a}${n % 10}${b}` : `${a}${b}${n}`; }
@@ -396,7 +397,7 @@ function riderMaterial(base, o) {
 function makeHuman(o) {
   const r = new THREE.Group(); const m = SkeletonUtils.clone(humanProto); m.scale.setScalar(humanScale);
   let head = null;
-  m.traverse(n => { if (n.isMesh) { n.castShadow = true; n.frustumCulled = false; n.material = riderMaterial(n.material, o); } if (n.isBone && POSE[n.name]) { const [x, y, z] = POSE[n.name]; n.rotation.x += x; n.rotation.y += y; n.rotation.z += z; } if (n.name === 'mixamorigHeadTop_End') head = n; if (n.name === 'mixamorigHead' && !head) head = n; });
+  m.traverse(n => { if (n.isMesh) { n.castShadow = true; n.frustumCulled = false; n.material = riderMaterial(n.material, o); } if (n.isBone && RIDER_POSE[n.name]) { const [x, y, z] = RIDER_POSE[n.name]; n.rotation.x += x; n.rotation.y += y; n.rotation.z += z; } if (n.name === 'mixamorigHeadTop_End') head = n; if (n.name === 'mixamorigHead' && !head) head = n; });
   m.position.y = -hipsY; r.add(m);
   // riding helmet on head bone
   const hb = m.getObjectByName('mixamorigHead');
@@ -404,11 +405,11 @@ function makeHuman(o) {
     m.updateMatrixWorld(true); const ws = new THREE.Vector3(); hb.getWorldScale(ws); const k = 1 / ws.x;
     const hel = new THREE.Group();
     const shell = new THREE.Mesh(new THREE.SphereGeometry(0.13, 28, 16, 0, Math.PI * 2, 0, Math.PI / 1.85), new THREE.MeshPhysicalMaterial({ color: o.helmet, roughness: 0.35, clearcoat: 0.8, clearcoatRoughness: 0.2 }));
-    shell.scale.set(1.05, 1, 1.12); shell.castShadow = true; hel.add(shell);
+    shell.scale.set(...HELMET.scale); shell.castShadow = true; hel.add(shell);
     const peak = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.12, 0.014, 20, 1, false, -Math.PI / 2, Math.PI), std('#111', 0.4)); peak.position.set(0, -0.005, 0.07); peak.rotation.x = 0.15; hel.add(peak);
     const vent = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.01, 0.22), new THREE.MeshStandardMaterial({ color: 0xd8d8e0, metalness: 0.9, roughness: 0.25 })); vent.position.set(0, 0.128, 0); hel.add(vent);
     const harness = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.008, 6, 20, Math.PI), std('#111')); harness.rotation.set(0, Math.PI / 2, Math.PI); harness.position.set(0, -0.02, 0.0); hel.add(harness);
-    hel.scale.setScalar(k); hel.position.set(0, 0.13 * k, -0.005 * k); hb.add(hel);
+    hel.scale.setScalar(k); hel.position.set(HELMET.pos[0] * k, HELMET.pos[1] * k, HELMET.pos[2] * k); hb.add(hel);
   }
   r.userData = {}; return r;
 }
@@ -545,7 +546,7 @@ function makeHorse(colorHex, isMe, o = outfit) {
   const mesh = new THREE.Mesh(coatGeometry(o), horseProto.material);
   mesh.morphTargetInfluences = horseProto.morphTargetInfluences.slice(); mesh.morphTargetDictionary = horseProto.morphTargetDictionary;
   mesh.material = furMaterial(horseProto.material);
-  mesh.scale.setScalar(horseScale); mesh.position.y = horseYOff;
+  mesh.scale.setScalar(horseScale); mesh.position.y = horseYOff - 0.07;
   mesh.castShadow = true; mesh.receiveShadow = true;
   g.add(mesh);
   const tack = new THREE.Group(); tack.add(makeSaddle(o)); g.add(tack);
@@ -564,6 +565,13 @@ function backPoint(mesh, idx, out) {
   out.set(pos.getX(idx), pos.getY(idx), pos.getZ(idx));
   if (morph) for (let k = 0; k < morph.length; k++) if (inf[k]) { out.x += morph[k].getX(idx) * inf[k]; out.y += morph[k].getY(idx) * inf[k]; out.z += morph[k].getZ(idx) * inf[k]; }
   return out.multiplyScalar(horseScale).add(mesh.position);
+}
+// fire a callback on each footfall of the gallop clip (4 beats per stride)
+const FOOTFALLS = [0.06, 0.2, 0.33, 0.47];
+function footfalls(g, grounded, cb) {
+  const act = g.userData.mixer._actions[0]; if (!act) return; const D = horseClip.duration; const ph = (act.time % D) / D;
+  const prev = g.userData.lastPh ?? ph; g.userData.lastPh = ph;
+  for (const f of FOOTFALLS) { const crossed = prev <= ph ? (prev < f && ph >= f) : (prev < f || ph >= f); if (crossed && grounded) cb(); }
 }
 function followBack(g) {
   if (!backVerts) return; const ud = g.userData;
@@ -774,13 +782,15 @@ function hostHandle(fromId, d) {
     p.fin = ++finCount; const bonus = [50, 30, 15][p.fin - 1] || 0; p.gain = (d.carrots || 0) + bonus; p.score = (p.score || 0) + p.gain;
     const m = { t: 'feed', text: `🏁 ${p.name} #${p.fin}: +${d.carrots || 0} carrots +${bonus} bonus` }; broadcast(m); clientHandle(m);
     if (Object.values(players).every(q => q.fin)) { clearTimeout(raceTimer); raceTimer = setTimeout(hostEndRace, 1500); }
+  } else if (d.t === 'hackDone') {
+    hostHackDone(fromId);
   } else if (d.t === 'bonus') {
     if (players[fromId]) players[fromId].score += 10;
   } else if (d.t === 'hackTry') {
     const t = players[d.target], a = players[fromId]; if (!t || !a) return;
     const ok = d.guess === t.password; let amt = 0;
     if (ok) { amt = Math.floor((t.score || 0) * 0.25); t.score -= amt; a.score += amt; const m = { t: 'feed', text: `💾 ${a.name} HACKED ${t.name} (-${amt})` }; broadcast(m); clientHandle(m); }
-    toPlayer(fromId, { t: 'hackRes', ok, amt, targetName: t.name });
+    toPlayer(fromId, { t: 'hackRes', ok, amt, targetName: t.name }); if (players[fromId] && !players[fromId].bot) hostHackDone(fromId);
   } else if (d.t === 'hack') {
     const rich = Object.entries(players).filter(([id]) => id !== fromId).sort((a, b) => (b[1].coins || 0) - (a[1].coins || 0))[0];
     if (!rich) return;
@@ -804,7 +814,7 @@ function clientHandle(d) {
   else if (d.t === 'settings') { settings = d.settings; renderLobby(); }
   else if (d.t === 'feed') { feed(d.text); }
   else if (d.t === 'hack') { startHackPhase(d); }
-  else if (d.t === 'hackRes') { hkBody(d.ok ? `<div class="code" style="font-size:22px;color:#4dff8a">ACCESS GRANTED</div><div class="small">Stole ${d.amt} from ${esc(d.targetName)}!</div>` : `<div class="code" style="font-size:22px;color:#ff4060">ACCESS DENIED</div><div class="small">Wrong password.</div>`); d.ok ? sfx.good() : sfx.bad(); }
+  else if (d.t === 'hackRes') { hkBody(d.ok ? H('ACCESS GRANTED', '#4dff8a') + `<div class="small">Stole ${d.amt} from ${esc(d.targetName)}!</div>` : H('ACCESS DENIED', '#ff4060') + `<div class="small">Wrong password.</div>`); clearInterval(hkInt); $('hkTimer').textContent = ''; hkSent = true; d.ok ? sfx.good() : sfx.bad(); }
   else if (d.t === 'board') { showBoard(d); }
   else if (d.t === 'states') { for (const id in d.players) if (id !== me.id) players[id] = d.players[id]; }
   else if (d.t === 'mudded') { if (d.target === me.id) applyMud(d.from); else feed(`💩 ${d.from} mudded ${d.targetName}!`); }
@@ -887,36 +897,51 @@ function nextRound() {
   round++; finCount = 0; const seed = Math.floor(Math.random() * 1e9);
   for (const id in players) Object.assign(players[id], { z: 0, x: 0, y: 0, coins: 0, correct: 0, fin: 0, gain: 0 });
   const gateQs = takeQuestions(2); const m = { t: 'start', seed, players, round, gateQs, settings, remain: matchEnd - Date.now() }; broadcast(m); clientHandle(m);
-  clearTimeout(raceTimer); raceTimer = setTimeout(hostEndRace, 45000);
+  clearTimeout(raceTimer); raceTimer = setTimeout(hostEndRace, 36000);
 }
 function hostEndRace() {
   clearTimeout(raceTimer);
   const opts = {}; for (const id in players) opts[id] = shuffle([players[id].password, genPw(), genPw(), genPw()], Math.random);
   const q = takeQuestions(1)[0];
+  hackDone = new Set(); hackOpen = true;
   const m = { t: 'hack', players, opts, q }; broadcast(m); clientHandle(m);
   // bots occasionally hack too
-  for (const id in players) if (players[id].bot && Math.random() < 0.5) setTimeout(() => { const others = Object.keys(players).filter(k => k !== id); const tg = others[Math.floor(Math.random() * others.length)]; hostHandle(id, { t: 'hackTry', target: tg, guess: opts[tg][Math.floor(Math.random() * 4)] }); }, 5000 + Math.random() * 12000);
-  raceTimer = setTimeout(() => { const last = matchEnd - Date.now() < 20000; const b = { t: 'board', players, round, last, remain: matchEnd - Date.now() }; broadcast(b); clientHandle(b); if (!last) raceTimer = setTimeout(nextRound, 5000); }, 26000);
+  for (const id in players) if (players[id].bot) { hackDone.add(id); if (Math.random() < 0.5) setTimeout(() => { if (!hackOpen) return; const others = Object.keys(players).filter(k => k !== id); const tg = others[Math.floor(Math.random() * others.length)]; hostHandle(id, { t: 'hackTry', target: tg, guess: opts[tg][Math.floor(Math.random() * 4)] }); }, 2000 + Math.random() * 4000); }
+  raceTimer = setTimeout(endHackPhase, 31000);
 }
+let hackDone = new Set(), hackOpen = false;
+function endHackPhase() {
+  if (!hackOpen) return; hackOpen = false; clearTimeout(raceTimer);
+  const last = matchEnd - Date.now() < 15000; const b = { t: 'board', players, round, last, remain: matchEnd - Date.now() }; broadcast(b); clientHandle(b);
+  if (!last) raceTimer = setTimeout(nextRound, 4000);
+}
+function hostHackDone(id) { if (!hackOpen) return; hackDone.add(id); if (Object.keys(players).every(k => hackDone.has(k))) setTimeout(endHackPhase, 1200); }
 // ----- client: cyber hack phase -----
-let hkInt = null;
+let hkInt = null, hkSent = false;
 function hkBody(html) { $('hkBody').innerHTML = html; }
+function hkFinish() { clearInterval(hkInt); $('hkTimer').textContent = ''; if (!hkSent) { hkSent = true; send({ t: 'hackDone' }); } }
+function hkCountdown(sec, onEnd) {
+  clearInterval(hkInt); let left = sec; $('hkTimer').textContent = left + 's';
+  hkInt = setInterval(() => { left--; $('hkTimer').textContent = Math.max(0, left) + 's'; if (left <= 0) { clearInterval(hkInt); onEnd(); } }, 1000);
+}
+const H = (txt, col) => `<div class="hkHead" style="color:${col}">${txt}</div>`;
 function startHackPhase(d) {
-  document.exitPointerLock?.();
+  document.exitPointerLock?.(); hkSent = false;
   mode = 'hack'; $('hud').classList.remove('on'); $('touch').style.display = 'none'; show('hackS'); sfx.hack();
-  let left = 25; $('hkTimer').textContent = left + 's'; clearInterval(hkInt); hkInt = setInterval(() => { left--; $('hkTimer').textContent = Math.max(0, left) + 's'; if (left <= 0) { clearInterval(hkInt); hkBody('<div class="small">Time\'s up!</div>'); } }, 1000);
   const q = d.q; const answers = shuffle([q[1], q[2], q[3], q[4]], Math.random);
-  hkBody(`<div class="small" style="margin:6px 0">Answer right to get +10 and a chance to HACK</div><div class="pbox" style="padding:12px;font-size:30px;color:#fff">${esc(q[0])}</div>` + answers.map(a => `<button class="btn yel hkA">${esc(a)}</button>`).join(''));
+  hkBody(`<div class="small" style="margin:8px 0 14px">Answer right for +10 and a chance to HACK</div><div class="pbox" style="padding:14px;font-size:32px;color:#fff;margin-bottom:6px">${esc(q[0])}</div><div class="hkGrid">` + answers.map(a => `<button class="btn yel hkA">${esc(a)}</button>`).join('') + '</div>');
+  hkCountdown(15, () => { hkBody(H("TIME'S UP!", '#ff4060')); hkFinish(); });
   $('hkBody').querySelectorAll('.hkA').forEach(b => b.onclick = () => {
-    if (b.textContent !== q[1]) { sfx.bad(); hkBody(`<div class="code" style="font-size:20px;color:#ff4060">WRONG</div><div class="small">Answer: ${esc(q[1])}. No hack this round.</div>`); return; }
+    if (b.textContent !== q[1]) { sfx.bad(); hkBody(H('WRONG', '#ff4060') + `<div class="small">Answer: ${esc(q[1])}</div>`); hkFinish(); return; }
     sfx.good(); send({ t: 'bonus' });
     const targets = Object.entries(d.players).filter(([id]) => id !== me.id);
-    hkBody(`<div class="code" style="font-size:20px;color:#4dff8a">+10! PICK A TARGET</div>` + targets.map(([id, p]) => `<button class="btn cyn hkT" data-id="${id}">${esc(p.name)} · ${p.score || 0} pts</button>`).join(''));
+    hkBody(H('+10! PICK A TARGET', '#4dff8a') + '<div class="hkGrid">' + targets.map(([id, p]) => `<button class="btn cyn hkT" data-id="${id}">${esc(p.name)} · ${p.score || 0}</button>`).join('') + '</div>');
+    hkCountdown(5, () => { hkBody(H('TOO SLOW!', '#ff4060')); hkFinish(); });
     $('hkBody').querySelectorAll('.hkT').forEach(t => t.onclick = () => {
       const id = t.dataset.id;
-      let g = 10; const gi = setInterval(() => { g--; const el = $('guessT'); if (el) el.textContent = g; if (g <= 0) { clearInterval(gi); if ($('guessT')) hkBody('<div class="code" style="font-size:20px;color:#ff4060">TOO SLOW!</div>'); } }, 1000);
-      hkBody(`<div class="small">Guess ${esc(d.players[id].name)}'s PASSWORD — <span id="guessT" style="color:#ffe12b">10</span>s</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:0 10px">` + d.opts[id].map(w => `<button class="btn pnk hkP">${w}</button>`).join('') + '</div>');
-      $('hkBody').querySelectorAll('.hkP').forEach(pb => pb.onclick = () => { clearInterval(gi); hkBody('<div class="small">HACKING…</div>'); send({ t: 'hackTry', target: id, guess: pb.textContent }); });
+      hkBody(H(`GUESS ${esc(d.players[id].name).toUpperCase()}'S PASSWORD`, '#ff5fd2') + '<div class="hkGrid">' + d.opts[id].map(w => `<button class="btn pnk hkP">${w}</button>`).join('') + '</div>');
+      hkCountdown(10, () => { hkBody(H('TOO SLOW!', '#ff4060')); hkFinish(); });
+      $('hkBody').querySelectorAll('.hkP').forEach(pb => pb.onclick = () => { clearInterval(hkInt); hkBody(H('HACKING…', '#3df5ff')); send({ t: 'hackTry', target: id, guess: pb.textContent }); });
     });
   });
 }
@@ -1094,8 +1119,9 @@ function tick() {
     spookT = Math.max(0, spookT - dt); stumbleT = Math.max(0, stumbleT - dt); horse.rotation.x = stumbleT > 0 ? Math.sin((0.8 - stumbleT) / 0.8 * Math.PI) * 0.32 : spookT > 0 ? -Math.sin((0.9 - spookT) / 0.9 * Math.PI) * 0.55 : (me.y > 0 ? -clamp(me.vy * 0.04, -0.35, 0.35) : 0);
     { const ud = horse.userData; ud.phase += dt * (mode === 'race' ? speed / BASE_SPEED : 0.3) * 9; ud.rider.position.y = ud.riderY + Math.abs(Math.sin(ud.phase)) * 0.07; ud.rider.rotation.x = me.y > 0 ? 0.25 : Math.sin(ud.phase) * 0.04; }
     followBack(horse);
-    horse.userData.mixer.update(dt * (mode === 'race' ? speed / BASE_SPEED : 0.25) * 1.1);
-    if (mode === 'race' && me.y === 0 && Math.random() < 0.7) emitDust(me.x, me.z, speed, xVel);
+    const legRate = mode === 'race' ? (speed / BASE_SPEED) * 1.55 : (mode === 'menu' || mode === 'wardrobe' || mode === 'lobby') ? 0.35 : 0;
+    horse.userData.mixer.update(dt * legRate);
+    if (mode === 'race') footfalls(horse, me.y === 0, () => { if (me.y === 0) { emitDust(me.x, me.z, speed, xVel); play('hoof', 0.75, 0.85 + speed / BASE_SPEED * 0.2 + Math.random() * 0.1) || clop(0, true); } });
   }
   // ghosts
   const ghostSrc = players;
@@ -1107,7 +1133,7 @@ function tick() {
     gh.g.position.z = mode === 'race' ? lerp(gh.g.position.z, (p.z || 0) + (solo ? 0 : speed * 0.1), k) : (p.z || 0);
     { const ud = gh.g.userData; ud.phase += dt * 9; ud.rider.position.y = ud.riderY + Math.abs(Math.sin(ud.phase)) * 0.07; }
     followBack(gh.g);
-    gh.g.userData.mixer.update(dt * (mode === 'race' ? 1.1 : 0.25));
+    gh.g.userData.mixer.update(dt * (mode === 'race' ? 1.55 * (p.mult || 1) : 0));
   }
   // course anim
   for (const e of active) {
@@ -1119,7 +1145,6 @@ function tick() {
   updateDust(dt);
   if (matchEnd) { const ms = Math.max(0, matchEnd - Date.now()); $('matchT').style.display = 'block'; $('matchT').textContent = '⏱ ' + fmtTime(ms / 1000); } else $('matchT').style.display = 'none';
   if (mode === 'race' && horse && me.y === 0) { printT -= dt; if (printT <= 0) { printT = 0.11; printSide = -printSide; addPrint(me.x + printSide * 0.22, me.z - 1.2); } }
-  if (mode === 'race') hoofbeat(now, horseSpeed);
 
   // world follow
   const pz = me.z;
@@ -1227,7 +1252,7 @@ new GLTFLoader().load('models/Horse.glb', gltf => {
   new GLTFLoader().load('models/Michelle.glb', h => { try {
     humanProto = h.scene; humanProto.updateMatrixWorld(true); prepRiderGeometry(humanProto);
     const hb = new THREE.Box3().setFromObject(humanProto); humanScale = 1.6 / hb.getSize(new THREE.Vector3()).y;
-    const hips = humanProto.getObjectByName('mixamorigHips'); const hp = new THREE.Vector3(); hips.getWorldPosition(hp); hipsY = (hp.y - hb.min.y) * humanScale;
+    const hips = humanProto.getObjectByName('mixamorigHips'); const hp = new THREE.Vector3(); hips.getWorldPosition(hp); hipsY = (hp.y - hb.min.y) * humanScale; reshapeRider(humanProto); window.__riderY = RIDER_Y;
     rebuildMyHorse(); console.log('human ok', humanScale, hipsY); } catch (e) { console.error('human err', e.message, e.stack); }
   }, undefined, e => console.error('human fail', e));
   rebuildMyHorse();
