@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import { ParametricGeometry } from 'three/addons/geometries/ParametricGeometry.js';
 import { CATEGORIES } from './questions.js?v=1794364990';
 
 // ---------------- CONFIG ----------------
@@ -336,12 +337,14 @@ const WARD = {
   helmet: ['#1a1a2e', '#9b5de5', '#ff5fd2', '#ffe12b', '#3df5ff', '#ffffff', '#e0306a'],
   jacket: ['#1b2440', '#111114', '#6a2fd6', '#7a1630', '#1f4d2e', '#2d3e8a', '#5a5f6b'],
   pants: ['#f4f1ea', '#e9dcc0', '#d8d8dc', '#c9b48f'],
-  coat: ['#ffffff', '#8a5a3a', '#3a2a24', '#f2c46d', '#c9c9d4', '#b06a3a'],
+  coat: ['#a8582c', '#6b3a1e', '#1f1a18', '#dcae62', '#9c9ca4', '#efebe4'],
   pad: ['#9b5de5', '#ff5fd2', '#ffe12b', '#3df5ff', '#e0306a', '#ffffff', '#1a1a2e'],
 };
+const COATS = { '#a8582c': null, '#6b3a1e': ['#6b3a1e', '#141010'], '#1f1a18': ['#211b19', '#0c0a0a'], '#dcae62': ['#dcae62', '#f4ead2'], '#9c9ca4': ['#a3a3ab', '#3c3c42'], '#efebe4': ['#f1eee8', '#d9d4cc'] };
 const COAT_TINT = { '#ffffff': [1, 1, 1], '#8a5a3a': [0.62, 0.55, 0.5], '#3a2a24': [0.22, 0.2, 0.2], '#f2c46d': [1.6, 1.25, 0.6], '#c9c9d4': [1.5, 1.5, 1.6], '#b06a3a': [1.25, 0.8, 0.55] };
-const defaultOutfit = () => ({ helmet: WARD.helmet[1], jacket: WARD.jacket[0], pants: WARD.pants[0], coat: WARD.coat[0], pad: WARD.pad[3] });
+const defaultOutfit = () => ({ helmet: WARD.helmet[0], jacket: WARD.jacket[0], pants: WARD.pants[0], coat: WARD.coat[0], pad: WARD.pad[3] });
 let outfit = Object.assign(defaultOutfit(), JSON.parse(localStorage.getItem('hr_outfit') || '{}'));
+if (!WARD.coat.includes(outfit.coat)) outfit.coat = WARD.coat[0];
 function std(c, r = 0.7) { return new THREE.MeshStandardMaterial({ color: c, roughness: r }); }
 let humanProto = null, humanScale = 1, hipsY = 0;
 const POSE = {
@@ -433,29 +436,140 @@ function makeRider(o) {
   r.userData = { torso, head, helm };
   return r;
 }
+// ---------- horse coat, fur shader, saddle ----------
+const BARREL = { cy: 1.255, rx: 0.218, ry: 0.262 }; // horse-group space ellipse of the barrel under the saddle
+const SADDLE_Z = -0.04;
+let backVerts = null; // vertex indices used to follow the back while galloping
+function coatGeometry(o) {
+  const src = horseProto.geometry; const coat = COATS[o.coat];
+  if (!coat) return src;
+  const g = new THREE.BufferGeometry(); for (const k in src.attributes) if (k !== 'color') g.setAttribute(k, src.attributes[k]);
+  g.morphAttributes = src.morphAttributes; g.morphTargetsRelative = src.morphTargetsRelative; if (src.index) g.setIndex(src.index);
+  g.boundingSphere = src.boundingSphere; g.boundingBox = src.boundingBox;
+  const base = src.attributes.color, n = base.count, out = new Float32Array(n * 3), med = src.userData.medLum;
+  const body = new THREE.Color(coat[0]), mane = new THREE.Color(coat[1]);
+  for (let v = 0; v < n; v++) {
+    const r = base.getX(v), gg = base.getY(v), b = base.getZ(v), L = 0.3 * r + 0.59 * gg + 0.11 * b;
+    const dark = L < med * 0.5; const c = dark ? mane : body; const k = dark ? Math.min(1.3, 0.6 + L / (med * 0.5) * 0.5) : Math.min(1.25, L / med);
+    out[v * 3] = c.r * k; out[v * 3 + 1] = c.g * k; out[v * 3 + 2] = c.b * k;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(out, 3)); return g;
+}
+function furMaterial(base) {
+  const m = base.clone(); m.flatShading = false; m.roughness = 0.62; m.metalness = 0;
+  m.onBeforeCompile = sh => {
+    sh.vertexShader = 'varying vec3 vFurP;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvFurP = position;');
+    sh.fragmentShader = `varying vec3 vFurP;
+      float fh(vec3 p){ p = fract(p * 0.3183099 + .1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+      float fn(vec3 x){ vec3 i = floor(x), f = fract(x); f = f*f*(3.-2.*f);
+        return mix(mix(mix(fh(i), fh(i+vec3(1,0,0)), f.x), mix(fh(i+vec3(0,1,0)), fh(i+vec3(1,1,0)), f.x), f.y),
+                   mix(mix(fh(i+vec3(0,0,1)), fh(i+vec3(1,0,1)), f.x), mix(fh(i+vec3(0,1,1)), fh(i+vec3(1,1,1)), f.x), f.y), f.z); }
+      ` + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      { float lum = dot(diffuseColor.rgb, vec3(.3,.59,.11));
+        float fur = fn(vec3(vFurP.x * 0.9, vFurP.y * 0.25, vFurP.z * 0.9)) * 0.6 + fn(vFurP * 2.3) * 0.4;
+        float hair = fn(vec3(vFurP.x * 2.2, vFurP.y * 0.12, vFurP.z * 2.2));
+        float isMane = smoothstep(0.22, 0.12, lum);
+        diffuseColor.rgb *= mix(0.88 + 0.22 * fur, 0.7 + 0.6 * hair, isMane); }`);
+  };
+  m.customProgramCacheKey = () => 'horse-fur';
+  return m;
+}
+const _sp = (fn) => new ParametricGeometry(fn, 28, 20);
+function barrelPt(theta, z, off, t) { // theta 0 = top of back, + = toward +x
+  t.set(Math.sin(theta) * (BARREL.rx + off), BARREL.cy + Math.cos(theta) * (BARREL.ry + off), z); return t;
+}
+const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+let saddleGeos = null;
+function buildSaddleGeos() {
+  // saddle cloth (pad): drapes further down the sides, rounded lower corners
+  const pad = _sp((u, v, t) => {
+    const z = SADDLE_Z - 0.42 + u * 0.8; const th = (v - 0.5) * 2 * 1.22;
+    const edge = Math.abs(v - 0.5) * 2; const corner = Math.pow(Math.abs(u - 0.5) * 2, 3) * Math.pow(edge, 4) * 0.35;
+    return barrelPt(th * (1 - corner), z, 0.012, t);
+  });
+  // seat: twist narrow at front, deep in the middle, raised cantle (back) and pommel (front)
+  const seat = _sp((u, v, t) => {
+    const z = SADDLE_Z - 0.33 + u * 0.6; const halfW = 0.55 + 0.25 * (1 - u); const th = (v - 0.5) * 2 * halfW;
+    const cantle = 0.115 * smooth(0.22, 0.0, u) * Math.cos(th * 1.6); const pommel = 0.06 * smooth(0.82, 1.0, u) * Math.cos(th * 2.2);
+    const roll = 0.012 * (1 - Math.pow(Math.abs(v - 0.5) * 2, 2));
+    return barrelPt(th, z, 0.035 + cantle + pommel + roll, t);
+  });
+  // flaps: hang down each side, slightly forward-cut like a jumping saddle
+  const flap = (side) => _sp((u, v, t) => {
+    const zc = SADDLE_Z + 0.06 + (1 - v) * 0.05; const z = zc - 0.17 + u * 0.32 + v * 0.06;
+    const th = side * (0.62 + v * 0.95); const round = Math.pow(Math.abs(u - 0.5) * 2, 4) * v * 0.25;
+    return barrelPt(th * (1 - round * 0.4), z, 0.03 + v * 0.01, t);
+  });
+  saddleGeos = { pad, seat, flapL: flap(1), flapR: flap(-1) };
+}
+let padTexCache = {};
+function padTexture(col) {
+  if (padTexCache[col]) return padTexCache[col];
+  const t = canvasTex(256, 256, (g, w, h) => {
+    g.fillStyle = '#f6f4ef'; g.fillRect(0, 0, w, h);
+    g.strokeStyle = 'rgba(0,0,0,.08)'; g.lineWidth = 2;
+    for (let i = -w; i < w * 2; i += 18) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + h, h); g.stroke(); g.beginPath(); g.moveTo(i, h); g.lineTo(i + h, 0); g.stroke(); }
+    g.strokeStyle = col; g.lineWidth = 14; g.strokeRect(8, 8, w - 16, h - 16);
+  });
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; padTexCache[col] = t; return t;
+}
+function makeSaddle(o) {
+  if (!saddleGeos) buildSaddleGeos();
+  const s = new THREE.Group();
+  const leather = new THREE.MeshPhysicalMaterial({ color: 0x3b2316, roughness: 0.42, clearcoat: 0.35, clearcoatRoughness: 0.45, side: THREE.DoubleSide });
+  const suede = new THREE.MeshStandardMaterial({ color: 0x2c1a11, roughness: 0.9, side: THREE.DoubleSide });
+  const metal = new THREE.MeshStandardMaterial({ color: 0xd9dbe0, metalness: 1, roughness: 0.22 });
+  const add = (geo, mat) => { const m = new THREE.Mesh(geo, mat); m.castShadow = true; m.receiveShadow = true; s.add(m); return m; };
+  add(saddleGeos.pad, new THREE.MeshStandardMaterial({ map: padTexture(o.pad), roughness: 0.95, side: THREE.DoubleSide }));
+  add(saddleGeos.flapL, leather); add(saddleGeos.flapR, leather);
+  add(saddleGeos.seat, suede);
+  const _t = new THREE.Vector3();
+  for (const side of [-1, 1]) {
+    // knee roll
+    const kr = add(new THREE.CapsuleGeometry(0.03, 0.22, 4, 10), leather); barrelPt(side * 1.05, SADDLE_Z + 0.2, 0.05, _t); kr.position.copy(_t); kr.rotation.set(-0.35, 0, side * 0.95);
+    // stirrup leather + iron
+    barrelPt(side * 0.78, SADDLE_Z + 0.05, 0.05, _t); const top = _t.clone(); const bot = new THREE.Vector3(side * 0.37, 0.98, SADDLE_Z + 0.1);
+    const len = top.distanceTo(bot); const strap = add(new THREE.BoxGeometry(0.03, len, 0.006), leather);
+    strap.position.copy(top).add(bot).multiplyScalar(0.5); strap.lookAt(bot); strap.rotateX(Math.PI / 2);
+    const iron = add(new THREE.TorusGeometry(0.055, 0.008, 8, 20), metal); iron.position.copy(bot).add(new THREE.Vector3(0, -0.05, 0)); iron.rotation.y = Math.PI / 2;
+    const tread = add(new THREE.BoxGeometry(0.02, 0.012, 0.1), metal); tread.position.copy(iron.position).add(new THREE.Vector3(0, -0.05, 0));
+  }
+  // girth under the belly
+  const girthCurve = new THREE.EllipseCurve(0, 0, BARREL.rx + 0.035, BARREL.ry + 0.03, Math.PI * 0.08, Math.PI * 0.92, true);
+  const pts = girthCurve.getPoints(30).map(p => new THREE.Vector3(p.x, BARREL.cy + p.y, SADDLE_Z + 0.16));
+  add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 40, 0.02, 6, false), new THREE.MeshStandardMaterial({ color: 0x1b1410, roughness: 0.7 }));
+  return s;
+}
 function makeHorse(colorHex, isMe, o = outfit) {
   const g = new THREE.Group();
-  const mesh = horseProto.clone();
-  mesh.material = horseProto.material.clone();
-  const t = COAT_TINT[o.coat] || [1, 1, 1]; mesh.material.color.setRGB(t[0], t[1], t[2]);
+  const mesh = new THREE.Mesh(coatGeometry(o), horseProto.material);
+  mesh.morphTargetInfluences = horseProto.morphTargetInfluences.slice(); mesh.morphTargetDictionary = horseProto.morphTargetDictionary;
+  mesh.material = furMaterial(horseProto.material);
   mesh.scale.setScalar(horseScale); mesh.position.y = horseYOff;
-  mesh.castShadow = true;
+  mesh.castShadow = true; mesh.receiveShadow = true;
   g.add(mesh);
-  // saddle pad + saddle (follow the horse's back)
-  const pad = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.025, 0.78), std(o.pad, 0.95));
-  const leather = new THREE.MeshPhysicalMaterial({ color: 0x3a2214, roughness: 0.45, clearcoat: 0.4, clearcoatRoughness: 0.5 });
-  const saddle = new THREE.Mesh(new THREE.SphereGeometry(0.3, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2), leather);
-  saddle.scale.set(0.95, 0.22, 1.35); saddle.position.y = 0.015; saddle.castShadow = true; pad.add(saddle);
-  const pommel = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.035, 8, 16, Math.PI), leather); pommel.position.set(0, 0.04, 0.33); pad.add(pommel);
-  const cantle = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.04, 8, 16, Math.PI), leather); cantle.position.set(0, 0.04, -0.36); pad.add(cantle);
-  for (const sx of [-1, 1]) { const flap = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.38, 0.42), leather); flap.position.set(sx * 0.33, -0.17, 0.05); flap.rotation.z = sx * 0.18; pad.add(flap); }
-  pad.position.set(0, 1.47, 0.12); pad.castShadow = true; g.add(pad);
-  const rider = makeRider(o); rider.position.set(0, 1.62, 0.05); g.add(rider); g.userData.riderY = humanProto ? 1.66 : 1.62;
+  const tack = new THREE.Group(); tack.add(makeSaddle(o)); g.add(tack);
+  const rider = makeRider(o); tack.add(rider);
+  const rY = humanProto ? (window.__riderY || 1.66) : 1.62; rider.position.set(0, rY, 0.05);
   const mixer = new THREE.AnimationMixer(mesh);
   const act = mixer.clipAction(horseClip); act.play(); act.time = Math.random();
-  g.userData = { mixer, pad, mesh, rider, phase: Math.random() * 6, riderY: humanProto ? 1.66 : 1.62 };
+  g.userData = { mixer, pad: tack, tack, mesh, rider, phase: Math.random() * 6, riderY: rY };
   scene.add(g);
   return g;
+}
+// make the saddle + rider ride the horse's back: sample morphed back vertices each frame
+const _bv = new THREE.Vector3();
+function backPoint(mesh, idx, out) {
+  const pos = mesh.geometry.attributes.position, morph = mesh.geometry.morphAttributes.position, inf = mesh.morphTargetInfluences;
+  out.set(pos.getX(idx), pos.getY(idx), pos.getZ(idx));
+  if (morph) for (let k = 0; k < morph.length; k++) if (inf[k]) { out.x += morph[k].getX(idx) * inf[k]; out.y += morph[k].getY(idx) * inf[k]; out.z += morph[k].getZ(idx) * inf[k]; }
+  return out.multiplyScalar(horseScale).add(mesh.position);
+}
+function followBack(g) {
+  if (!backVerts) return; const ud = g.userData;
+  const f = backPoint(ud.mesh, backVerts.front, _bv).y - backVerts.fy, fz = backVerts.fz;
+  const b = backPoint(ud.mesh, backVerts.back, _bv).y - backVerts.by, bz = backVerts.bz;
+  ud.tack.position.y = (f + b) * 0.5; ud.tack.rotation.x = -Math.atan2(f - b, fz - bz) * 0.9;
 }
 function rebuildMyHorse() { if (!horseProto) return; if (horse) scene.remove(horse); horse = makeHorse(me.color, true, outfit); }
 function nameSprite(text, color) {
@@ -504,6 +618,25 @@ function answerTex(letter, text, col) {
 }
 const postGeo = new THREE.CylinderGeometry(0.12, 0.12, 4.2, 10);
 const whiteMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 });
+let carrotProto = null;
+function makeCarrot() {
+  if (!carrotProto) {
+    const prof = []; for (let k = 0; k <= 20; k++) { const t = k / 20; prof.push(new THREE.Vector2(0.15 * Math.pow(Math.sin(Math.min(1, t * 1.15) * Math.PI / 2), 0.6) * (1 - 0.85 * t) + 0.012, -0.5 + t * 1.0)); }
+    prof.reverse();
+    const ringTex = canvasTex(64, 256, (g, w, h) => { g.fillStyle = '#ff7a12'; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 9 + Math.random() * 12) { g.fillStyle = `rgba(150,50,0,${0.25 + Math.random() * 0.25})`; g.fillRect(0, y, w, 2); } for (let i = 0; i < 40; i++) { g.fillStyle = 'rgba(255,190,90,.25)'; g.fillRect(Math.random() * w, Math.random() * h, 1, 6); } });
+    const body = new THREE.Mesh(new THREE.LatheGeometry(prof, 20), new THREE.MeshStandardMaterial({ map: ringTex, roughness: 0.55, emissive: 0x401000, emissiveIntensity: 0.25 }));
+    body.rotation.x = Math.PI; body.castShadow = true;
+    const g = new THREE.Group(); g.add(body);
+    const leafMat = new THREE.MeshStandardMaterial({ color: 0x2f9a35, roughness: 0.6, side: THREE.DoubleSide });
+    for (let k = 0; k < 7; k++) {
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.014, 0.42, 5), leafMat); const a = k / 7 * Math.PI * 2;
+      stem.position.set(Math.cos(a) * 0.04, 0.68, Math.sin(a) * 0.04); stem.rotation.set(Math.sin(a) * 0.35, 0, -Math.cos(a) * 0.35); g.add(stem);
+      for (let f = 0; f < 3; f++) { const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.12, 4), leafMat); leaf.position.set(0, -0.05 + f * 0.1, 0); leaf.scale.z = 0.3; leaf.rotation.z = f % 2 ? 0.7 : -0.7; stem.add(leaf); }
+    }
+    carrotProto = g;
+  }
+  return carrotProto.clone();
+}
 function spawnEvent(e) {
   const g = new THREE.Group(); g.position.z = e.z;
   if (e.type === 'gate') {
@@ -536,22 +669,30 @@ function spawnEvent(e) {
     const line = new THREE.Mesh(new THREE.PlaneGeometry(13.4, 1), new THREE.MeshStandardMaterial({ map: chk })); line.rotation.x = -Math.PI / 2; line.position.y = 0.04; g.add(line);
   } else if (e.type === 'spook') {
     const x = LANES[e.lane];
-    if (e.kind === 0) { // open striped umbrella lying on the track
-      const ut = canvasTex(256, 32, (g, w, h) => { const c = ['#ff4060', '#ffe12b', '#3df5ff', '#9b5de5', '#4dff8a', '#ff9d2e', '#ff5fd2', '#2d6cff']; for (let i = 0; i < 8; i++) { g.fillStyle = c[i]; g.fillRect(i * 32, 0, 32, h); } });
-      const um = new THREE.Mesh(new THREE.ConeGeometry(1.1, 0.55, 16, 1, true), new THREE.MeshStandardMaterial({ map: ut, side: THREE.DoubleSide, roughness: 0.6 }));
-      const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.2, 6), std('#222')); handle.position.y = -0.4; um.add(handle);
-      um.position.set(x, 0.75, 0); um.rotation.set(0.9, 0, 0.4); um.castShadow = true; g.add(um); e.spin = um;
-    } else { // flapping plastic bag on a stick
-      const bag = new THREE.Mesh(new THREE.IcosahedronGeometry(0.45, 1), new THREE.MeshStandardMaterial({ color: 0xf4f4f4, roughness: 0.25, transparent: true, opacity: 0.85, flatShading: true }));
-      bag.scale.set(1, 1.3, 0.6); bag.position.set(x, 1.2, 0); bag.castShadow = true; g.add(bag); e.flap = bag;
-      const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.2, 6), std('#6b4a2b')); stick.position.set(x, 0.6, 0); g.add(stick);
+    if (e.kind === 0) { // big open golf umbrella planted in the lane, canopy facing the riders
+      const ut = canvasTex(512, 64, (g, w, h) => { const c = ['#e0303a', '#ffffff']; for (let i = 0; i < 8; i++) { g.fillStyle = c[i % 2]; g.fillRect(i * 64, 0, 64, h); } });
+      const um = new THREE.Group();
+      const canopy = new THREE.Mesh(new THREE.SphereGeometry(1.15, 32, 10, 0, Math.PI * 2, 0, Math.PI / 2.6), new THREE.MeshStandardMaterial({ map: ut, side: THREE.DoubleSide, roughness: 0.55 }));
+      canopy.castShadow = true; um.add(canopy);
+      for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; const rib = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 4), std('#222')); rib.position.set(Math.cos(a) * 0.98, 0.6, Math.sin(a) * 0.98); um.add(rib); }
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.9, 8), new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.8, roughness: 0.3 })); shaft.position.y = 0.2; um.add(shaft);
+      const hook = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.028, 8, 16, Math.PI), std('#3a2414')); hook.position.y = -0.75; hook.rotation.z = Math.PI; um.add(hook);
+      um.position.set(x, 1.4, 0); um.rotation.set(-1.05, 0, 0); g.add(um); e.wobble = um;
+    } else { // bunch of party balloons tied to a post
+      const cols = [0xff3b5c, 0xffd23f, 0x3df5ff, 0x9b5de5, 0x4dff8a, 0xff8a2b];
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 1.1, 10), std('#6b4a2b')); post.position.set(x, 0.55, 0); post.castShadow = true; g.add(post);
+      const bunch = new THREE.Group(); bunch.position.set(x, 1.1, 0);
+      for (let k = 0; k < 6; k++) {
+        const b = new THREE.Mesh(new THREE.SphereGeometry(0.3, 20, 14), new THREE.MeshPhysicalMaterial({ color: cols[k], roughness: 0.15, clearcoat: 1, clearcoatRoughness: 0.1 }));
+        b.scale.y = 1.2; const a = k / 6 * Math.PI * 2; b.position.set(Math.cos(a) * 0.45, 1.3 + (k % 2) * 0.35, Math.sin(a) * 0.3); b.castShadow = true; bunch.add(b);
+        const knot = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.08, 8), b.material); knot.position.copy(b.position).add(new THREE.Vector3(0, -0.38, 0)); knot.rotation.x = Math.PI; bunch.add(knot);
+        const len = b.position.length(); const str = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, len, 4), std('#eeeeee')); str.position.copy(b.position).multiplyScalar(0.5); str.lookAt(b.position.clone().add(bunch.position)); str.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.position.clone().normalize()); bunch.add(str);
+      }
+      g.add(bunch); e.flap = bunch;
     }
-    const warn = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.08), new THREE.MeshBasicMaterial({ color: 0xffe12b })); warn.rotation.x = -Math.PI / 2; warn.position.set(x, 0.05, 1.4); g.add(warn);
+    const warn = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.12), new THREE.MeshBasicMaterial({ color: 0xffe12b })); warn.rotation.x = -Math.PI / 2; warn.position.set(x, 0.05, 1.6); g.add(warn);
   } else if (e.type === 'carrot') {
-    const c = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.9, 8), new THREE.MeshStandardMaterial({ color: 0xff8a1f, roughness: 0.5, emissive: 0xff5500, emissiveIntensity: 0.15 }));
-    c.rotation.x = Math.PI; c.position.y = 0.0;
-    const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.4, 5), new THREE.MeshStandardMaterial({ color: 0x2fae3a })); leaf.position.y = 0.6;
-    const holder = new THREE.Group(); holder.add(c, leaf); holder.position.set(LANES[e.lane], 1.1, 0); holder.castShadow = true; c.castShadow = true;
+    const holder = makeCarrot(); holder.position.set(LANES[e.lane], 1.1, 0);
     g.add(holder); e.holder = holder;
   }
   e.obj = g; scene.add(g); active.push(e);
@@ -741,7 +882,7 @@ function takeQuestions(n) {
   }
   localStorage.setItem(key, JSON.stringify(used)); return out;
 }
-function hostStart() { round = 0; matchEnd = Date.now() + settings.mins * 60000; for (const id in players) players[id].score = 0; nextRound(); }
+function hostStart() { for (const id in players) if (players[id].bot) players[id].mult = 1; round = 0; matchEnd = Date.now() + settings.mins * 60000; for (const id in players) players[id].score = 0; nextRound(); }
 function nextRound() {
   round++; finCount = 0; const seed = Math.floor(Math.random() * 1e9);
   for (const id in players) Object.assign(players[id], { z: 0, x: 0, y: 0, coins: 0, correct: 0, fin: 0, gain: 0 });
@@ -836,7 +977,7 @@ function laneIndexOf(x) { let best = 0; LANES.forEach((lx, i) => { if (Math.abs(
 function steer(dir) { if (mode === 'race' || mode === 'count') { me.lane = clamp(me.lane + dir, 0, 3); aimX = LANES[me.lane]; } }
 let aimX = 0, xVel = 0;
 addEventListener('mousemove', e => { if (document.pointerLockElement !== canvas || !(mode === 'race' || mode === 'count')) return; aimX = clamp(aimX - e.movementX * 0.02, -5.6, 5.6); me.lane = laneIndexOf(aimX); });
-canvas.addEventListener('mousedown', () => { if ((mode === 'race' || mode === 'count') && document.pointerLockElement !== canvas) canvas.requestPointerLock?.()?.catch?.(() => {}); });
+canvas.addEventListener('mousedown', () => { if (mode === 'race') jump(); if ((mode === 'race' || mode === 'count') && document.pointerLockElement !== canvas) canvas.requestPointerLock?.()?.catch?.(() => {}); });
 function jump() { if (mode === 'race' && me.y <= 0.001) { me.vy = 9; sfx.jump(); airborne = true; } }
 let airborne = false;
 
@@ -846,17 +987,16 @@ function triggerEvent(e) {
     if (lane === e.correct) {
       const gain = 10 * (1 + me.multLvl);
       me.coins += gain; me.correct++; me.speedMult *= 1.1; effects.boost = 0.6; sfx.good();
-      toast(`CORRECT! SPEED ${Math.round(me.speedMult * 100)}%`, '#4dff8a');
+      toast('CORRECT!', '#4dff8a');
       e.banners[lane].material.emissive.set(0x22ff88); e.banners[lane].material.emissiveIntensity = 0.6;
     } else {
       me.speedMult *= 0.9; sfx.bad();
-      toast(`WRONG! SPEED ${Math.round(me.speedMult * 100)}%`, '#ff4060');
+      toast('WRONG!', '#ff4060');
       e.banners[e.correct].material.emissive.set(0x22ff88); e.banners[e.correct].material.emissiveIntensity = 0.6;
     }
     e.done = true; renderShop();
   } else if (e.type === 'fence') {
-    if (me.y < 1.0) { e.knocked = 0.001; effects.slow = 1.0; effects.slowMult = 0.4; sfx.knock(); toast('RAIL DOWN!', '#ffe12b'); shake = 0.4; }
-    else { me.coins += 2; toast('CLEAR! +2', '#3df5ff'); renderShop(); }
+    if (me.y < 1.0) { e.knocked = 0.001; effects.slow = 1.1; effects.slowMult = 0.35; stumbleT = 0.8; sfx.knock(); toast('RAIL DOWN!', '#ffe12b'); shake = 0.4; }
   } else if (e.type === 'spook') {
     if (laneIndexOf(me.x) === e.lane && me.y < 1.3) { effects.slow = 1.6; effects.slowMult = 0.2; spookT = 0.9; sfx.spook(); toast('SPOOKED!', '#ff5fd2'); shake = 0.5; }
   } else if (e.type === 'finish') {
@@ -868,7 +1008,7 @@ function triggerEvent(e) {
   }
 }
 
-let spookT = 0, lastCount = 0, glitch = 0, shake = 0, lastNet = 0, lastShopRender = 0;
+let stumbleT = 0, spookT = 0, lastCount = 0, glitch = 0, shake = 0, lastNet = 0, lastShopRender = 0;
 function updateQuestion() {
   const next = active.find(e => e.type === 'gate' && !e.done && e.z > me.z) || course.find(e => e.type === 'gate' && e.z > me.z);
   if (next !== curGate) {
@@ -924,9 +1064,9 @@ function tick() {
     active = active.filter(e => { if (e.z < me.z - 25) { scene.remove(e.obj); return false; } return true; });
     // bots
     if (isHost) for (const id in players) { const b = players[id]; if (!b.bot) continue;
-      b.slow = Math.max(0, (b.slow || 0) - dt); b.boost = Math.max(0, (b.boost || 0) - dt);
-      if (Math.random() < dt * 0.12) b.boost = 2.5; if (Math.random() < dt * 0.1) b.slow = 1.2;
-      b.z += (BASE_SPEED * b.skill) * (b.boost ? 1.5 : 1) * (b.slow ? 0.5 : 1) * dt;
+      b.slow = Math.max(0, (b.slow || 0) - dt); if (b.mult == null || round === 1 && b.z === 0) b.mult = b.mult ?? 1;
+      const pz0 = b.z; b.z += BASE_SPEED * b.mult * (b.slow ? 0.35 : 1) * dt;
+      for (const ev of course) { if (ev.z > pz0 && ev.z <= b.z) { if (ev.type === 'gate') b.mult *= Math.random() < 0.6 ? 1.1 : 0.9; else if (ev.type === 'fence' && Math.random() < 0.25) b.slow = 1.1; else if (ev.type === 'spook' && Math.random() < 0.15) b.slow = 1.6; } }
       b.x = LANES[Math.floor(b.z / 110 + b.lane0) % 4];
       if (b.z >= FINISH && !b.fin) hostHandle(id, { t: 'fin', carrots: 4 + Math.floor(Math.random() * 12) });
     }
@@ -949,10 +1089,11 @@ function tick() {
   me.vy -= 26 * dt; me.y = Math.max(0, me.y + me.vy * dt); if (me.y === 0) { me.vy = Math.max(0, me.vy); if (airborne) { airborne = false; sfx.land(); } }
 
   if (horse) {
-    horse.position.set(me.x, me.y, me.z);
+    horse.position.set(me.x, me.y - (stumbleT > 0 ? Math.sin((0.8 - stumbleT) / 0.8 * Math.PI) * 0.25 : 0), me.z);
     horse.rotation.y = clamp(xVel * 0.05, -0.4, 0.4); horse.rotation.z = clamp(-xVel * 0.02, -0.15, 0.15);
-    spookT = Math.max(0, spookT - dt); horse.rotation.x = spookT > 0 ? -Math.sin((0.9 - spookT) / 0.9 * Math.PI) * 0.55 : (me.y > 0 ? -clamp(me.vy * 0.04, -0.35, 0.35) : 0);
+    spookT = Math.max(0, spookT - dt); stumbleT = Math.max(0, stumbleT - dt); horse.rotation.x = stumbleT > 0 ? Math.sin((0.8 - stumbleT) / 0.8 * Math.PI) * 0.32 : spookT > 0 ? -Math.sin((0.9 - spookT) / 0.9 * Math.PI) * 0.55 : (me.y > 0 ? -clamp(me.vy * 0.04, -0.35, 0.35) : 0);
     { const ud = horse.userData; ud.phase += dt * (mode === 'race' ? speed / BASE_SPEED : 0.3) * 9; ud.rider.position.y = ud.riderY + Math.abs(Math.sin(ud.phase)) * 0.07; ud.rider.rotation.x = me.y > 0 ? 0.25 : Math.sin(ud.phase) * 0.04; }
+    followBack(horse);
     horse.userData.mixer.update(dt * (mode === 'race' ? speed / BASE_SPEED : 0.25) * 1.1);
     if (mode === 'race' && me.y === 0 && Math.random() < 0.7) emitDust(me.x, me.z, speed, xVel);
   }
@@ -965,12 +1106,13 @@ function tick() {
     gh.g.position.y = lerp(gh.g.position.y, p.y || 0, k);
     gh.g.position.z = mode === 'race' ? lerp(gh.g.position.z, (p.z || 0) + (solo ? 0 : speed * 0.1), k) : (p.z || 0);
     { const ud = gh.g.userData; ud.phase += dt * 9; ud.rider.position.y = ud.riderY + Math.abs(Math.sin(ud.phase)) * 0.07; }
+    followBack(gh.g);
     gh.g.userData.mixer.update(dt * (mode === 'race' ? 1.1 : 0.25));
   }
   // course anim
   for (const e of active) {
-    if (e.spin) e.spin.rotation.y += dt * 0.6;
-    if (e.flap) { e.flap.rotation.z = Math.sin(now * 9 + e.z) * 0.35; e.flap.position.y = 1.2 + Math.sin(now * 6) * 0.08; }
+    if (e.wobble) e.wobble.rotation.z = Math.sin(now * 2.2 + e.z) * 0.12;
+    if (e.flap) { e.flap.rotation.z = Math.sin(now * 1.7 + e.z) * 0.12; e.flap.rotation.x = Math.sin(now * 1.3) * 0.08; }
     if (e.type === 'carrot' && e.holder) { e.holder.rotation.y += dt * 3; e.holder.position.y = 1.1 + Math.sin(now * 4 + e.z) * 0.15; }
     if (e.type === 'fence' && e.knocked) { e.knocked = Math.min(1, e.knocked + dt * 2.5); e.poles.forEach((p, i) => { p.position.y = lerp([0.45, 0.85, 1.25][i], 0.08 + i * 0.12, e.knocked); p.position.z = e.knocked * (0.6 + i * 0.3); p.rotation.y = e.knocked * (i - 1) * 0.15; }); }
   }
@@ -1056,9 +1198,31 @@ await Promise.all([document.fonts.load('40px VT323'), document.fonts.load('20px 
 new GLTFLoader().load('models/Horse.glb', gltf => {
   horseProto = gltf.scene.getObjectByProperty('type', 'Mesh') || gltf.scene.children[0];
   horseClip = gltf.animations[0];
+  { // smooth normals by welding positions
+    const g = horseProto.geometry; const pos = g.attributes.position; const idx = g.index; const n = new Float32Array(pos.count * 3); const map = new Map(); const keys = new Array(pos.count);
+    for (let v = 0; v < pos.count; v++) { const k = `${Math.round(pos.getX(v))}_${Math.round(pos.getY(v))}_${Math.round(pos.getZ(v))}`; keys[v] = k; }
+    const acc = new Map(); const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), cb = new THREE.Vector3(), ab = new THREE.Vector3();
+    const tri = idx ? idx.count / 3 : pos.count / 3;
+    for (let t = 0; t < tri; t++) {
+      const i0 = idx ? idx.getX(t * 3) : t * 3, i1 = idx ? idx.getX(t * 3 + 1) : t * 3 + 1, i2 = idx ? idx.getX(t * 3 + 2) : t * 3 + 2;
+      a.fromBufferAttribute(pos, i0); b.fromBufferAttribute(pos, i1); c.fromBufferAttribute(pos, i2); cb.subVectors(c, b); ab.subVectors(a, b); cb.cross(ab);
+      for (const i of [i0, i1, i2]) { const k = keys[i]; const s0 = acc.get(k) || new THREE.Vector3(); s0.add(cb); acc.set(k, s0); }
+    }
+    for (let v = 0; v < pos.count; v++) { const s0 = acc.get(keys[v]).clone().normalize(); n[v * 3] = s0.x; n[v * 3 + 1] = s0.y; n[v * 3 + 2] = s0.z; }
+    g.setAttribute('normal', new THREE.BufferAttribute(n, 3));
+    const col = g.attributes.color; const L = []; for (let v = 0; v < col.count; v++) L.push(0.3 * col.getX(v) + 0.59 * col.getY(v) + 0.11 * col.getZ(v)); L.sort((x, y) => x - y); g.userData.medLum = L[Math.floor(L.length * 0.6)];
+  }
   const box = new THREE.Box3().setFromObject(horseProto);
   const size = box.getSize(new THREE.Vector3());
   horseScale = 2.3 / size.y; horseYOff = -box.min.y * horseScale;
+  { // back reference vertices (top of back just in front of / behind the saddle)
+    const pos = horseProto.geometry.attributes.position; let fb = null, bb = null;
+    for (let v = 0; v < pos.count; v++) { const x = pos.getX(v) * horseScale, y = pos.getY(v) * horseScale + horseYOff, z = pos.getZ(v) * horseScale;
+      if (Math.abs(x) > 0.06) continue;
+      if (Math.abs(z - (SADDLE_Z + 0.22)) < 0.08 && (!fb || y > fb.y)) fb = { v, y, z };
+      if (Math.abs(z - (SADDLE_Z - 0.25)) < 0.08 && (!bb || y > bb.y)) bb = { v, y, z }; }
+    if (fb && bb) backVerts = { front: fb.v, fy: fb.y, fz: fb.z, back: bb.v, by: bb.y, bz: bb.z };
+  }
   window.__horseInfo = { size: size.toArray(), min: box.min.toArray(), rot: horseProto.rotation.toArray() };
   new GLTFLoader().load('models/Michelle.glb', h => { try {
     humanProto = h.scene; humanProto.updateMatrixWorld(true); prepRiderGeometry(humanProto);
