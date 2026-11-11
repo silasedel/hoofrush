@@ -4,6 +4,7 @@ import { Sky } from 'three/addons/objects/Sky.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { RIDER_POSE, reshapeRider, RIDER_Y, HELMET } from './riderfix.js?v=1794366193';
 import { ParametricGeometry } from 'three/addons/geometries/ParametricGeometry.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CATEGORIES } from './questions.js?v=1794366193';
 
 // ---------------- CONFIG ----------------
@@ -157,7 +158,7 @@ const sfx = {
 // real recorded samples (Mixkit free SFX) with synth fallback
 const SFX = {};
 async function loadSfx() {
-  for (const n of ['hoof', 'hoof1', 'hoof2', 'hoof3', 'hoof4', 'hoof5', 'hoof6', 'gallop', 'rail', 'chomp', 'correct', 'wrong', 'hack', 'jump', 'neigh']) {
+  for (const n of ['hoof', 'gallop', 'rail', 'chomp', 'correct', 'wrong', 'hack', 'jump', 'neigh']) {
     try { const r = await fetch(`sfx/${n}.mp3`); if (!r.ok) continue; SFX[n] = await ac().decodeAudioData(await r.arrayBuffer()); } catch (e) {}
   }
 }
@@ -260,23 +261,30 @@ const hills = new THREE.Group(); scene.add(hills);
 
 // Trees (instanced, recycled)
 const TREE_N = 160, TREE_RANGE = 420;
-const trunkM = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.25, 0.4, 3, 6), new THREE.MeshStandardMaterial({ color: 0x5a3b22, roughness: 1 }), TREE_N);
-const leafGeo = new THREE.IcosahedronGeometry(2.4, 1);
-const leafM = new THREE.InstancedMesh(leafGeo, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, flatShading: true }), TREE_N);
+const barkTex = canvasTex(64, 256, (g, w, h) => { g.fillStyle = '#4a3020'; g.fillRect(0, 0, w, h); for (let i = 0; i < 60; i++) { g.fillStyle = `rgba(${20 + Math.random() * 40},${12 + Math.random() * 25},8,.6)`; g.fillRect(Math.random() * w, Math.random() * h, 2 + Math.random() * 3, 20 + Math.random() * 60); } }, true);
+const trunkGeo = new THREE.CylinderGeometry(0.22, 0.42, 3.2, 12, 4); { const p = trunkGeo.attributes.position; for (let i = 0; i < p.count; i++) { const y = p.getY(i); const k = 1 + Math.sin(y * 3 + p.getX(i) * 9) * 0.06; p.setX(i, p.getX(i) * k); p.setZ(i, p.getZ(i) * k); } trunkGeo.computeVertexNormals(); }
+const trunkM = new THREE.InstancedMesh(trunkGeo, new THREE.MeshStandardMaterial({ map: barkTex, roughness: 0.95 }), TREE_N);
+const leafGeo = (() => { // clustered canopy: several lumpy blobs merged, smooth shaded
+  const parts = []; const blobs = [[0, 0, 0, 2.0], [1.3, -0.4, 0.3, 1.45], [-1.2, -0.3, -0.4, 1.5], [0.2, 1.1, -0.2, 1.4], [-0.4, -0.2, 1.2, 1.3], [0.5, -0.1, -1.25, 1.3]];
+  for (const [x, y, z, r] of blobs) { const g = new THREE.IcosahedronGeometry(r, 3); const p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) { const vx = p.getX(i), vy = p.getY(i), vz = p.getZ(i); const n = 1 + 0.12 * Math.sin(vx * 3.1 + vz * 2.3) * Math.cos(vy * 2.7 + vx * 1.3) + 0.06 * Math.sin(vz * 7 + vy * 5); p.setXYZ(i, vx * n + x, vy * n * 0.92 + y, vz * n + z); }
+    g.deleteAttribute('uv'); parts.push(g); }
+  const m = mergeGeometries(parts); m.computeVertexNormals(); return m; })();
+const leafM = new THREE.InstancedMesh(leafGeo, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 }), TREE_N);
 trunkM.castShadow = leafM.castShadow = true; trunkM.frustumCulled = leafM.frustumCulled = false;
 const trees = [];
 for (let i = 0; i < TREE_N; i++) {
   const side = i % 2 ? 1 : -1;
   trees.push({ x: side * (15 + Math.random() * 70), z: Math.random() * TREE_RANGE - 30, s: 0.8 + Math.random() * 0.9 });
-  leafM.setColorAt(i, new THREE.Color().setHSL(0.24 + Math.random() * 0.08, 0.5, 0.25 + Math.random() * 0.12));
+  leafM.setColorAt(i, new THREE.Color().setHSL(0.25 + Math.random() * 0.07, 0.45 + Math.random() * 0.15, 0.2 + Math.random() * 0.1));
 }
 scene.add(trunkM, leafM);
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _p = new THREE.Vector3();
 function updateTrees(pz) {
   trees.forEach((t, i) => {
     if (t.z < pz - 30) t.z += TREE_RANGE;
-    _s.setScalar(t.s); _p.set(t.x, 1.5 * t.s, t.z); _m.compose(_p, _q.identity(), _s); trunkM.setMatrixAt(i, _m);
-    _s.set(t.s, t.s * 1.15, t.s); _p.set(t.x, 4.2 * t.s, t.z); _m.compose(_p, _q, _s); leafM.setMatrixAt(i, _m);
+    _s.setScalar(t.s); _p.set(t.x, 1.6 * t.s, t.z); _m.compose(_p, _q.identity(), _s); trunkM.setMatrixAt(i, _m);
+    _s.set(t.s, t.s * 1.05, t.s); _p.set(t.x, 4.4 * t.s, t.z); _m.compose(_p, _q, _s); leafM.setMatrixAt(i, _m);
   });
   trunkM.instanceMatrix.needsUpdate = leafM.instanceMatrix.needsUpdate = true;
 }
@@ -484,7 +492,7 @@ let saddleGeos = null;
 function buildSaddleGeos() {
   // saddle cloth (pad): drapes further down the sides, rounded lower corners
   const pad = _sp((u, v, t) => {
-    const z = SADDLE_Z - 0.42 + u * 0.8; const th = (v - 0.5) * 2 * 1.22;
+    const z = SADDLE_Z - 0.4 + u * 0.74; const th = (v - 0.5) * 2 * 0.95;
     const edge = Math.abs(v - 0.5) * 2; const corner = Math.pow(Math.abs(u - 0.5) * 2, 3) * Math.pow(edge, 4) * 0.35;
     return barrelPt(th * (1 - corner), z, 0.012, t);
   });
@@ -529,7 +537,7 @@ function makeSaddle(o) {
     // knee roll
     const kr = add(new THREE.CapsuleGeometry(0.03, 0.22, 4, 10), leather); barrelPt(side * 1.05, SADDLE_Z + 0.2, 0.05, _t); kr.position.copy(_t); kr.rotation.set(-0.35, 0, side * 0.95);
     // stirrup leather + iron
-    barrelPt(side * 0.78, SADDLE_Z + 0.05, 0.05, _t); const top = _t.clone(); const bot = new THREE.Vector3(side * 0.37, 0.98, SADDLE_Z + 0.1);
+    barrelPt(side * 0.85, SADDLE_Z + 0.08, 0.045, _t); const top = _t.clone(); const bot = new THREE.Vector3(side * 0.3, 0.95, SADDLE_Z + 0.14);
     const len = top.distanceTo(bot); const strap = add(new THREE.BoxGeometry(0.03, len, 0.006), leather);
     strap.position.copy(top).add(bot).multiplyScalar(0.5); strap.lookAt(bot); strap.rotateX(Math.PI / 2);
     const iron = add(new THREE.TorusGeometry(0.055, 0.008, 8, 20), metal); iron.position.copy(bot).add(new THREE.Vector3(0, -0.05, 0)); iron.rotation.y = Math.PI / 2;
@@ -543,7 +551,7 @@ function makeSaddle(o) {
 }
 function makeHorse(colorHex, isMe, o = outfit) {
   const g = new THREE.Group();
-  const mesh = new THREE.Mesh(coatGeometry(o), horseProto.material);
+  const mesh = new THREE.Mesh(coatGeometry(o), horseProto.material); mesh.name = horseProto.name;
   mesh.morphTargetInfluences = horseProto.morphTargetInfluences.slice(); mesh.morphTargetDictionary = horseProto.morphTargetDictionary;
   mesh.material = furMaterial(horseProto.material);
   mesh.scale.setScalar(horseScale); mesh.position.y = horseYOff - 0.07;
@@ -1121,7 +1129,7 @@ function tick() {
     followBack(horse);
     const legRate = mode === 'race' ? (speed / BASE_SPEED) * 1.55 : (mode === 'menu' || mode === 'wardrobe' || mode === 'lobby') ? 0.35 : 0;
     horse.userData.mixer.update(dt * legRate);
-    if (mode === 'race') footfalls(horse, me.y === 0, () => { if (me.y === 0) { emitDust(me.x, me.z, speed, xVel); play('hoof' + (1 + Math.floor(Math.random() * 6)), 0.8, 0.9 + speed / BASE_SPEED * 0.12 + Math.random() * 0.08) || play('hoof', 0.75) || clop(0, true); } });
+    if (mode === 'race') footfalls(horse, me.y === 0, () => { if (me.y === 0) { emitDust(me.x, me.z, speed, xVel); play('hoof', 0.75, 0.9 + speed / BASE_SPEED * 0.12 + Math.random() * 0.08) || clop(0, true); } });
   }
   // ghosts
   const ghostSrc = players;
