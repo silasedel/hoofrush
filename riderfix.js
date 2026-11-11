@@ -94,8 +94,8 @@ function reshapeMesh(mesh) {
     set(s + 'Arm', { mode: 'scale', f: 1.22 });
     set(s + 'ForeArm', { mode: 'scale', f: 1.15 });
     set(s + 'Shoulder', { mode: 'scale', f: 1.08 });
-    // breeches: thigh 0.085 at hip -> 0.058 above knee (metres, bind space ~1.66m tall)
-    set(s + 'UpLeg', { mode: 'tight', prof: t => THREE.MathUtils.lerp(0.083, 0.056, t), keep: 0.25, t0: 0.12 });
+    // breeches: thigh 0.074 at hip -> 0.054 above knee (metres, bind space ~1.66m tall)
+    set(s + 'UpLeg', { mode: 'tight', prof: t => THREE.MathUtils.lerp(0.074, 0.054, t), keep: 0.2, t0: 0.12 });
     // tall boot: knee 0.054 -> calf 0.058 -> ankle 0.042
     set(s + 'Leg', { mode: 'tight', prof: t => t < 0.35 ? THREE.MathUtils.lerp(0.054, 0.058, t / 0.35) : THREE.MathUtils.lerp(0.058, 0.041, (t - 0.35) / 0.65), keep: 0.1 });
     set(s + 'Foot', { mode: 'foot' });

@@ -157,8 +157,21 @@ const sfx = {
 };
 // real recorded samples (Mixkit free SFX) with synth fallback
 const SFX = {};
+let gallopNode = null, gallopGain = null;
+function gallopLoop(on, rate = 1) {
+  if (!SFX.gallop2 || !actx) return;
+  if (on && !gallopNode) {
+    gallopNode = actx.createBufferSource(); gallopNode.buffer = SFX.gallop2; gallopNode.loop = true;
+    gallopGain = actx.createGain(); gallopGain.gain.value = 0; gallopNode.connect(gallopGain); gallopGain.connect(master); gallopNode.start();
+  }
+  if (!gallopNode) return;
+  const t = actx.currentTime;
+  gallopGain.gain.setTargetAtTime(on ? 0.55 : 0, t, 0.08);
+  gallopNode.playbackRate.setTargetAtTime(Math.max(0.6, Math.min(1.6, rate)), t, 0.1);
+  if (!on) { const n = gallopNode; gallopNode = null; setTimeout(() => { try { n.stop(); } catch (e) {} }, 400); }
+}
 async function loadSfx() {
-  for (const n of ['hoof', 'gallop', 'rail', 'chomp', 'correct', 'wrong', 'hack', 'jump', 'neigh']) {
+  for (const n of ['hoof', 'gallop', 'gallop2', 'rail', 'chomp', 'correct', 'wrong', 'hack', 'jump', 'neigh']) {
     try { const r = await fetch(`sfx/${n}.mp3`); if (!r.ok) continue; SFX[n] = await ac().decodeAudioData(await r.arrayBuffer()); } catch (e) {}
   }
 }
@@ -507,7 +520,7 @@ function buildSaddleGeos() {
   const flap = (side) => _sp((u, v, t) => {
     const zc = SADDLE_Z + 0.06 + (1 - v) * 0.05; const z = zc - 0.17 + u * 0.32 + v * 0.06;
     const th = side * (0.62 + v * 0.95); const round = Math.pow(Math.abs(u - 0.5) * 2, 4) * v * 0.25;
-    return barrelPt(th * (1 - round * 0.4), z, 0.03 + v * 0.01, t);
+    return barrelPt(th * (1 - round * 0.4), z, 0.008 + v * 0.002, t);
   });
   saddleGeos = { pad, seat, flapL: flap(1), flapR: flap(-1) };
 }
@@ -535,9 +548,9 @@ function makeSaddle(o) {
   const _t = new THREE.Vector3();
   for (const side of [-1, 1]) {
     // knee roll
-    const kr = add(new THREE.CapsuleGeometry(0.03, 0.22, 4, 10), leather); barrelPt(side * 1.05, SADDLE_Z + 0.2, 0.05, _t); kr.position.copy(_t); kr.rotation.set(-0.35, 0, side * 0.95);
+    const kr = add(new THREE.CapsuleGeometry(0.03, 0.22, 4, 10), leather); barrelPt(side * 1.0, SADDLE_Z + 0.2, 0.02, _t); kr.position.copy(_t); kr.rotation.set(-0.35, 0, side * 0.95);
     // stirrup leather + iron
-    barrelPt(side * 0.85, SADDLE_Z + 0.08, 0.045, _t); const top = _t.clone(); const bot = new THREE.Vector3(side * 0.3, 0.95, SADDLE_Z + 0.14);
+    barrelPt(side * 0.85, SADDLE_Z + 0.08, 0.02, _t); const top = _t.clone(); const bot = new THREE.Vector3(side * 0.255, 0.95, SADDLE_Z + 0.14);
     const len = top.distanceTo(bot); const strap = add(new THREE.BoxGeometry(0.03, len, 0.006), leather);
     strap.position.copy(top).add(bot).multiplyScalar(0.5); strap.lookAt(bot); strap.rotateX(Math.PI / 2);
     const iron = add(new THREE.TorusGeometry(0.055, 0.008, 8, 20), metal); iron.position.copy(bot).add(new THREE.Vector3(0, -0.05, 0)); iron.rotation.y = Math.PI / 2;
@@ -1129,7 +1142,7 @@ function tick() {
     followBack(horse);
     const legRate = mode === 'race' ? (speed / BASE_SPEED) * 1.55 : (mode === 'menu' || mode === 'wardrobe' || mode === 'lobby') ? 0.35 : 0;
     horse.userData.mixer.update(dt * legRate);
-    if (mode === 'race') footfalls(horse, me.y === 0, () => { if (me.y === 0) { emitDust(me.x, me.z, speed, xVel); play('hoof', 0.75, 0.9 + speed / BASE_SPEED * 0.12 + Math.random() * 0.08) || clop(0, true); } });
+    if (mode === 'race') footfalls(horse, me.y === 0, () => { if (me.y === 0) emitDust(me.x, me.z, speed, xVel); });
   }
   // ghosts
   const ghostSrc = players;
@@ -1151,6 +1164,7 @@ function tick() {
     if (e.type === 'fence' && e.knocked) { e.knocked = Math.min(1, e.knocked + dt * 2.5); e.poles.forEach((p, i) => { p.position.y = lerp([0.45, 0.85, 1.25][i], 0.08 + i * 0.12, e.knocked); p.position.z = e.knocked * (0.6 + i * 0.3); p.rotation.y = e.knocked * (i - 1) * 0.15; }); }
   }
   updateDust(dt);
+  { const run = mode === 'race' && !me.finished; if (run) gallopLoop(me.y === 0, speed / BASE_SPEED); else if (gallopNode) gallopLoop(false); }
   if (matchEnd) { const ms = Math.max(0, matchEnd - Date.now()); $('matchT').style.display = 'block'; $('matchT').textContent = '⏱ ' + fmtTime(ms / 1000); } else $('matchT').style.display = 'none';
   if (mode === 'race' && horse && me.y === 0) { printT -= dt; if (printT <= 0) { printT = 0.11; printSide = -printSide; addPrint(me.x + printSide * 0.22, me.z - 1.2); } }
 
