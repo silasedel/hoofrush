@@ -157,7 +157,7 @@ const sfx = {
 // real recorded samples (Mixkit free SFX) with synth fallback
 const SFX = {};
 async function loadSfx() {
-  for (const n of ['hoof', 'gallop', 'rail', 'chomp', 'correct', 'wrong', 'hack', 'jump', 'neigh']) {
+  for (const n of ['hoof', 'hoof1', 'hoof2', 'hoof3', 'hoof4', 'hoof5', 'hoof6', 'gallop', 'rail', 'chomp', 'correct', 'wrong', 'hack', 'jump', 'neigh']) {
     try { const r = await fetch(`sfx/${n}.mp3`); if (!r.ok) continue; SFX[n] = await ac().decodeAudioData(await r.arrayBuffer()); } catch (e) {}
   }
 }
@@ -1121,7 +1121,7 @@ function tick() {
     followBack(horse);
     const legRate = mode === 'race' ? (speed / BASE_SPEED) * 1.55 : (mode === 'menu' || mode === 'wardrobe' || mode === 'lobby') ? 0.35 : 0;
     horse.userData.mixer.update(dt * legRate);
-    if (mode === 'race') footfalls(horse, me.y === 0, () => { if (me.y === 0) { emitDust(me.x, me.z, speed, xVel); play('hoof', 0.75, 0.85 + speed / BASE_SPEED * 0.2 + Math.random() * 0.1) || clop(0, true); } });
+    if (mode === 'race') footfalls(horse, me.y === 0, () => { if (me.y === 0) { emitDust(me.x, me.z, speed, xVel); play('hoof' + (1 + Math.floor(Math.random() * 6)), 0.8, 0.9 + speed / BASE_SPEED * 0.12 + Math.random() * 0.08) || play('hoof', 0.75) || clop(0, true); } });
   }
   // ghosts
   const ghostSrc = players;
@@ -1158,12 +1158,12 @@ function tick() {
   const fovT = 62 + (effects.boost > 0 ? 12 : 0);
   camera.fov = lerp(camera.fov, fovT, 1 - Math.exp(-dt * 4)); camera.updateProjectionMatrix();
   shake = Math.max(0, shake - dt);
-  const camX = me.x * 0.55 + (Math.random() - .5) * shake, camY = 3.7 + me.y * 0.4 + (Math.random() - .5) * shake;
+  const camX = me.x * 0.8 + (Math.random() - .5) * shake, camY = 3.15 + me.y * 0.45 + (Math.random() - .5) * shake;
   if (mode === 'menu' || mode === 'lobby' || mode === 'wardrobe') {
     const a = now * 0.25; const wd = mode === 'wardrobe'; camera.position.set(me.x + Math.sin(a) * (wd ? 5 : 7), wd ? 2.4 : 2.6, me.z + Math.cos(a) * (wd ? 5 : 7)); camera.lookAt(me.x + (wd ? -1.6 : 0), wd ? 1.6 : 1.3, me.z);
   } else {
-    camera.position.set(lerp(camera.position.x, camX, 1 - Math.exp(-dt * 6)), camY, pz - 7.2);
-    camera.lookAt(me.x * 0.75, 1.7 + me.y * 0.3, pz + 9);
+    camera.position.set(lerp(camera.position.x, camX, 1 - Math.exp(-dt * 6)), camY, pz - 5.3);
+    camera.lookAt(me.x * 0.9, 1.85 + me.y * 0.35, pz + 9);
   }
   renderer.render(scene, camera);
 }
