@@ -194,7 +194,9 @@ const grassTex = canvasTex(512, 512, (g, w, h) => {
   g.fillStyle = '#5b8f2e'; g.fillRect(0, 0, w, h);
   for (let i = 0; i < 9000; i++) { const s = Math.random(); g.fillStyle = `hsl(${85 + s * 30},${45 + s * 20}%,${26 + Math.random() * 20}%)`; g.fillRect(Math.random() * w, Math.random() * h, 2, 3 + Math.random() * 4); }
 }, true);
-grassTex.repeat.set(60, 60);
+grassTex.repeat.set(100, 100);
+const TL = new THREE.TextureLoader();
+function realTex(url, base, rx, ry) { TL.load(url, t => { t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 16; t.repeat.set(rx, ry); base.material.map = t; base.material.needsUpdate = true; }); }
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(800, 800), new THREE.MeshStandardMaterial({ map: grassTex, roughness: 1 }));
 ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
 
@@ -203,9 +205,10 @@ const dirtTex = canvasTex(256, 256, (g, w, h) => {
   for (let i = 0; i < 5000; i++) { g.fillStyle = `hsla(${25 + Math.random() * 10},${30 + Math.random() * 25}%,${35 + Math.random() * 30}%,.8)`; g.fillRect(Math.random() * w, Math.random() * h, 2, 2); }
   for (const x of [w * 0.33, w * 0.66]) { g.fillStyle = 'rgba(80,50,25,.18)'; g.fillRect(x - 3, 0, 6, h); }
 }, true);
-dirtTex.repeat.set(1, 60);
-const track = new THREE.Mesh(new THREE.PlaneGeometry(11, 600), new THREE.MeshStandardMaterial({ map: dirtTex, roughness: 1 }));
+dirtTex.repeat.set(2, 110);
+const track = new THREE.Mesh(new THREE.PlaneGeometry(11, 600), new THREE.MeshStandardMaterial({ map: dirtTex, roughness: 1, color: 0xf0c890 }));
 track.rotation.x = -Math.PI / 2; track.position.y = 0.02; track.receiveShadow = true; scene.add(track);
+realTex('tex/leafy_grass.jpg', ground, 100, 100); realTex('tex/dirt.jpg', track, 2, 110);
 
 // Distant hills
 const hills = new THREE.Group(); scene.add(hills);
@@ -582,7 +585,7 @@ function startRace(seed, plist) {
   Object.assign(me, { z: 0, x: 0, lane: 1, y: 0, vy: 0, coins: 0, correct: 0, speedLvl: 0, boostLvl: 0, multLvl: 0 });
   effects = { boost: 0, slow: 0, slowMult: 1, mud: 0 };
   me.color = players[me.id]?.color || COLORS[0];
-  rebuildMyHorse(); startMusic();
+  rebuildMyHorse();
   for (const id in players) if (id !== me.id) makeGhost(id, players[id]);
   if (solo) bots.forEach(b => { Object.assign(b, { z: 0, slow: 0, boost: 0, coins: 0 }); makeGhost(b.id, b); });
   mode = 'count'; raceStart = performance.now() / 1000 + 3;
@@ -701,7 +704,6 @@ function tick() {
     $('dist').textContent = `${Math.floor(me.z)} m`;
     $('coins').textContent = me.coins;
     $('mud').style.opacity = effects.mud > 0 ? 1 : 0; glitch = Math.max(0, glitch - dt); canvas.style.filter = glitch > 0 ? `hue-rotate(${Math.random() * 360}deg) contrast(1.4)` : '';
-    hoofbeat(now, speed);
   }
 
   // player physics
@@ -736,8 +738,8 @@ function tick() {
 
   // world follow
   const pz = me.z;
-  ground.position.z = pz + 150; grassTex.offset.y = (pz + 150) / (800 / 60);
-  track.position.z = pz + 250; dirtTex.offset.y = (pz + 250) / 10;
+  ground.position.z = Math.floor((pz + 150) / 8) * 8;
+  track.position.z = Math.floor((pz + 250) / (600 / 110)) * (600 / 110);
   hills.position.z = pz;
   updateTrees(pz); updateRails(pz);
   sun.position.set(me.x + sunDir.x * 60, sunDir.y * 60, pz + 15 + sunDir.z * 60); sun.target.position.set(me.x, 0, pz + 15);
