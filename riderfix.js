@@ -4,8 +4,9 @@
 import * as THREE from 'three';
 
 // Additive euler deltas on top of the rest rotations (same format as POSE in game.js).
-// Solved with IK for horse space: hands ~(+-0.09, 1.78, 0.42), knees ~(+-0.30, 1.42, 0.24),
-// ankles ~(+-0.37, 0.98, 0.15), thumbs up / fists closed, toes slightly out.
+// Solved with IK for horse space: hands ~(+-0.09, 1.78, 0.42), knees ~(+-0.245, 1.32, 0.20),
+// ankles ~(+-0.26, 0.89, 0.11) (legs hug the narrow saddle / barrel), heels down, thumbs up, fists closed.
+// Right side is the exact mirror of the left (x same, y/z negated).
 export const RIDER_POSE = {
   'mixamorigSpine': [0.12,  0,  0],
   'mixamorigSpine1': [0.05,  0,  0],
@@ -47,12 +48,12 @@ export const RIDER_POSE = {
   'mixamorigRightHandPinky1': [1.245,  -0.111,  -0.314],
   'mixamorigRightHandPinky2': [1.299,  -0.258,  -0.345],
   'mixamorigRightHandPinky3': [-0.826,  -0.126,  0.296],
-  'mixamorigLeftUpLeg': [-1.011,  0.158,  0.674],
-  'mixamorigLeftLeg': [-1.114,  0.341,  0.048],
-  'mixamorigLeftFoot': [0.947,  -0.046,  -0.014],
-  'mixamorigRightUpLeg': [-1.011,  -0.165,  -0.672],
-  'mixamorigRightLeg': [-1.097,  -0.335,  -0.048],
-  'mixamorigRightFoot': [0.909,  0.046,  0.021],
+  'mixamorigLeftUpLeg': [-0.804, 0.407, 0.527],
+  'mixamorigLeftLeg': [-0.886, 0.241, 0.05],
+  'mixamorigLeftFoot': [1.163, -0.165, -0.173],
+  'mixamorigRightUpLeg': [-0.802, -0.413, -0.523],
+  'mixamorigRightLeg': [-0.869, -0.236, -0.049],
+  'mixamorigRightFoot': [1.126, 0.16, 0.179],
 };
 
 // Rider group y in horse space (hips bone sits at rider group origin).
@@ -99,10 +100,11 @@ function reshapeMesh(mesh) {
     set(s + 'Foot', { mode: 'foot' });
     set(s + 'ToeBase', { mode: 'foot' });
   }
-  set('Spine', { mode: 'torso', fx: 1.12, fz: 1.12 });
-  set('Spine1', { mode: 'torso', fx: 1.14, fz: 1.1 });
-  set('Spine2', { mode: 'torso', fx: 1.12, fz: 1.08 });
-  set('Hips', { mode: 'torso', fx: 1.08, fz: 1.06 });
+  // fuller adult waist: lower spine / waist / hips get the most extra girth (no wasp waist)
+  set('Spine', { mode: 'torso', fx: 1.26, fz: 1.2 });
+  set('Spine1', { mode: 'torso', fx: 1.2, fz: 1.14 });
+  set('Spine2', { mode: 'torso', fx: 1.1, fz: 1.07 });
+  set('Hips', { mode: 'torso', fx: 1.14, fz: 1.12 });
   set('Neck', { mode: 'scale', f: 1.1 });
 
   // first pass: mean radius per bin along tight segments

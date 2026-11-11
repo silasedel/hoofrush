@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { RIDER_POSE, reshapeRider, RIDER_Y, HELMET } from './riderfix.js?v=1794365946';
+import { RIDER_POSE, reshapeRider, RIDER_Y, HELMET } from './riderfix.js?v=1794366193';
 import { ParametricGeometry } from 'three/addons/geometries/ParametricGeometry.js';
-import { CATEGORIES } from './questions.js?v=1794365946';
+import { CATEGORIES } from './questions.js?v=1794366193';
 
 // ---------------- CONFIG ----------------
 const DURATION = 150;           // seconds per race
@@ -1158,12 +1158,12 @@ function tick() {
   const fovT = 62 + (effects.boost > 0 ? 12 : 0);
   camera.fov = lerp(camera.fov, fovT, 1 - Math.exp(-dt * 4)); camera.updateProjectionMatrix();
   shake = Math.max(0, shake - dt);
-  const camX = me.x * 0.8 + (Math.random() - .5) * shake, camY = 3.15 + me.y * 0.45 + (Math.random() - .5) * shake;
+  const camX = me.x * 0.8 + (Math.random() - .5) * shake, camY = 2.95 + me.y * 0.45 + (Math.random() - .5) * shake;
   if (mode === 'menu' || mode === 'lobby' || mode === 'wardrobe') {
     const a = now * 0.25; const wd = mode === 'wardrobe'; camera.position.set(me.x + Math.sin(a) * (wd ? 5 : 7), wd ? 2.4 : 2.6, me.z + Math.cos(a) * (wd ? 5 : 7)); camera.lookAt(me.x + (wd ? -1.6 : 0), wd ? 1.6 : 1.3, me.z);
   } else {
-    camera.position.set(lerp(camera.position.x, camX, 1 - Math.exp(-dt * 6)), camY, pz - 5.3);
-    camera.lookAt(me.x * 0.9, 1.85 + me.y * 0.35, pz + 9);
+    camera.position.set(lerp(camera.position.x, camX, 1 - Math.exp(-dt * 6)), camY, pz - 4.5);
+    camera.lookAt(me.x * 0.95, 1.9 + me.y * 0.35, pz + 9);
   }
   renderer.render(scene, camera);
 }
