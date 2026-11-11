@@ -11,6 +11,26 @@ const PREFIX = 'hoofrush-v1-';
 const COLORS = ['#ff4d6d', '#3a86ff', '#22c06b', '#ffbe0b', '#9b5de5', '#ff8a2b', '#00bbf9', '#f15bb5'];
 
 const QUESTIONS = [
+  // SURVEY SAYS (popularity) — marked with *
+  ['*Most popular pet in America?', 'Dog', 'Fish', 'Hamster'],
+  ['*Most popular pizza topping?', 'Pepperoni', 'Pineapple', 'Mushroom'],
+  ['*Most popular ice cream flavor?', 'Vanilla', 'Mint chip', 'Strawberry'],
+  ['*Most popular horse color?', 'Bay (brown)', 'Palomino', 'Pinto'],
+  ['*Most popular breakfast?', 'Cereal', 'Pancakes', 'Waffles'],
+  ['*Most common favorite color?', 'Blue', 'Orange', 'Yellow'],
+  ['*Most popular US horse breed?', 'Quarter Horse', 'Friesian', 'Shetland'],
+  ['*Most popular holiday?', 'Christmas', 'Easter', 'Labor Day'],
+  ['*Most-played arcade game ever?', 'Pac-Man', 'Frogger', 'Galaga'],
+  ['*Most popular fast food item?', 'Fries', 'Salad', 'Tacos'],
+  ['*Most popular girl\'s horse name?', 'Bella', 'Gertrude', 'Pam'],
+  ['*Most popular sport in the world?', 'Soccer', 'Golf', 'Polo'],
+  ['*Most popular drink worldwide?', 'Water', 'Soda', 'Juice'],
+  ['*Most popular fruit in the US?', 'Banana', 'Kiwi', 'Mango'],
+  ['*What do horses LOVE most as a treat?', 'Apples & carrots', 'Pickles', 'Chips'],
+  // Pac-Man (for mom)
+  ['Pac-Man\'s ghosts: Blinky, Pinky, Inky &…', 'Clyde', 'Steve', 'Sparky'],
+  ['What color is Pac-Man?', 'Yellow', 'Purple', 'Red'],
+  ['Pac-Man came out in…', '1980', '1995', '1972'],
   // Horse / equestrian (for sis)
   ['A baby horse is called a…', 'Foal', 'Calf', 'Kid'],
   ['A female horse is called a…', 'Mare', 'Stallion', 'Gelding'],
@@ -73,33 +93,67 @@ function canvasTex(w, h, draw, repeat) {
   return t;
 }
 
-// ---------------- AUDIO ----------------
-let actx;
-function beep(freqs, dur = 0.12, type = 'triangle', vol = 0.15) {
-  try {
-    actx = actx || new AudioContext();
-    freqs.forEach((f, i) => {
-      const o = actx.createOscillator(), g = actx.createGain();
-      o.type = type; o.frequency.value = f; o.connect(g); g.connect(actx.destination);
-      const t0 = actx.currentTime + i * dur;
-      g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + dur * 1.6);
-      o.start(t0); o.stop(t0 + dur * 1.7);
-    });
-  } catch (e) {}
+// ---------------- AUDIO (arcade synth + filtered-noise foley) ----------------
+let masterGain, muted = localStorage.getItem('hr_muted') === '1', actx, master, NB, musicOn = localStorage.getItem('hr_music') !== '0', musicTimer = null;
+function ac() {
+  if (!actx) {
+    actx = new AudioContext(); master = actx.createDynamicsCompressor(); masterGain = actx.createGain(); masterGain.gain.value = muted ? 0 : 1; master.connect(masterGain); masterGain.connect(actx.destination);
+    NB = actx.createBuffer(1, actx.sampleRate, actx.sampleRate); const d = NB.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  }
+  if (actx.state === 'suspended') actx.resume();
+  return actx;
+}
+addEventListener('pointerdown', () => ac(), { once: false });
+addEventListener('keydown', () => ac());
+function tone(f0, f1, dur, type = 'square', vol = 0.12, delay = 0) {
+  const a = ac(), t = a.currentTime + delay, o = a.createOscillator(), g = a.createGain();
+  o.type = type; o.frequency.setValueAtTime(f0, t); if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.setValueAtTime(vol, t + dur * 0.7); g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.02);
+}
+function noise(dur, freq, q, vol, type = 'bandpass', delay = 0) {
+  const a = ac(), t = a.currentTime + delay, s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+  s.buffer = NB; f.type = type; f.frequency.value = freq; f.Q.value = q;
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+  s.connect(f); f.connect(g); g.connect(master); s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.02);
+}
+function clop(delay, accent) { // hoof on packed dirt: woody click + low thud
+  noise(0.05, 900 + Math.random() * 500, 4, accent ? 0.5 : 0.3, 'bandpass', delay);
+  tone(140, 55, 0.09, 'sine', accent ? 0.35 : 0.2, delay);
 }
 const sfx = {
-  good: () => beep([660, 880, 1320], 0.09),
-  bad: () => beep([220, 150], 0.18, 'sawtooth', 0.1),
-  coin: () => beep([1200], 0.05, 'square', 0.05),
-  jump: () => beep([300, 500], 0.06, 'sine', 0.12),
-  knock: () => beep([120, 90], 0.12, 'square', 0.12),
-  buy: () => beep([523, 659, 784], 0.07),
+  good: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, f, 0.08, 'square', 0.09, i * 0.06)),
+  bad: () => { tone(440, 110, 0.5, 'square', 0.08); tone(445, 112, 0.5, 'sawtooth', 0.04); },
+  coin: (() => { let w = 0; return () => { w ^= 1; tone(w ? 260 : 520, w ? 520 : 260, 0.09, 'triangle', 0.16); }; })(), // waka
+  jump: () => { tone(220, 880, 0.18, 'square', 0.06); noise(0.25, 1800, 0.7, 0.12, 'highpass'); },
+  land: () => { clop(0, true); clop(0.04, true); },
+  knock: () => { noise(0.25, 400, 1, 0.5, 'lowpass'); [0, 0.07, 0.15].forEach(d => tone(320 - d * 600, 200 - d * 400, 0.08, 'triangle', 0.25, d)); },
+  buy: () => [784, 988, 1319].forEach((f, i) => tone(f, f, 0.07, 'square', 0.07, i * 0.05)),
+  hack: () => { for (let i = 0; i < 8; i++) tone(200 + Math.random() * 1800, 100 + Math.random() * 900, 0.05, 'square', 0.06, i * 0.04); },
+  mud: () => { noise(0.4, 250, 2, 0.6, 'lowpass'); tone(120, 50, 0.3, 'sine', 0.3); },
+  count: (hi) => tone(hi ? 988 : 494, hi ? 988 : 494, hi ? 0.4 : 0.15, 'square', 0.1),
 };
-let lastHoof = 0;
-function hoofbeat(t, speed) {
-  const period = 0.36 * (BASE_SPEED / Math.max(8, speed));
-  if (t - lastHoof > period) { lastHoof = t; beep([90 + Math.random() * 20], 0.04, 'sine', 0.06); }
+let lastHoof = 0, hoofStep = 0;
+function hoofbeat(t, speed) { // 3-beat canter/gallop rhythm
+  const period = 0.42 * (BASE_SPEED / Math.max(8, speed));
+  const gaps = [0, 0.12, 0.24];
+  if (t - lastHoof > period) { lastHoof = t; gaps.forEach((g, i) => clop(g * period / 0.42, i === 2)); }
 }
+// chiptune loop
+const MEL = [76, 79, 83, 81, 79, 76, 74, 76, 0, 79, 81, 83, 86, 83, 81, 79, 76, 79, 83, 88, 86, 83, 81, 79, 81, 79, 76, 74, 76, 0, 0, 0];
+const BAS = [52, 52, 59, 59, 57, 57, 55, 55];
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+function startMusic() {
+  stopMusic(); if (!musicOn) return; let step = 0;
+  musicTimer = setInterval(() => {
+    if (!actx) return;
+    const n = MEL[step % MEL.length]; if (n) tone(mtof(n), mtof(n), 0.13, 'square', 0.025);
+    if (step % 4 === 0) tone(mtof(BAS[(step / 4) % BAS.length]), mtof(BAS[(step / 4) % BAS.length]), 0.3, 'triangle', 0.07);
+    if (step % 2 === 1) noise(0.03, 7000, 1, 0.03, 'highpass');
+    step++;
+  }, 140);
+}
+function stopMusic() { clearInterval(musicTimer); musicTimer = null; }
 
 // ---------------- RENDERER / SCENE ----------------
 const canvas = $('c');
@@ -229,27 +283,65 @@ function updateDust(dt) {
 
 // ---------------- HORSE MODEL ----------------
 let horseProto = null, horseClip = null, horseScale = 1, horseYOff = 0;
-function makeHorse(colorHex, isMe) {
+const WARD = {
+  helmet: ['#1a1a2e', '#9b5de5', '#ff5fd2', '#ffe12b', '#3df5ff', '#ffffff', '#e0306a'],
+  jacket: ['#6a2fd6', '#1a1a2e', '#e0306a', '#2d6cff', '#ffffff', '#4dff8a', '#ff9d2e'],
+  pants: ['#f4efe6', '#1a1a2e', '#c9a77c', '#6a2fd6', '#2d6cff'],
+  coat: ['#ffffff', '#8a5a3a', '#3a2a24', '#f2c46d', '#c9c9d4', '#b06a3a'],
+  pad: ['#9b5de5', '#ff5fd2', '#ffe12b', '#3df5ff', '#e0306a', '#ffffff', '#1a1a2e'],
+};
+const COAT_TINT = { '#ffffff': [1, 1, 1], '#8a5a3a': [0.62, 0.55, 0.5], '#3a2a24': [0.22, 0.2, 0.2], '#f2c46d': [1.6, 1.25, 0.6], '#c9c9d4': [1.5, 1.5, 1.6], '#b06a3a': [1.25, 0.8, 0.55] };
+const defaultOutfit = () => ({ helmet: WARD.helmet[1], jacket: WARD.jacket[0], pants: WARD.pants[0], coat: WARD.coat[0], pad: WARD.pad[3] });
+let outfit = Object.assign(defaultOutfit(), JSON.parse(localStorage.getItem('hr_outfit') || '{}'));
+function std(c, r = 0.7) { return new THREE.MeshStandardMaterial({ color: c, roughness: r }); }
+function makeRider(o) {
+  const r = new THREE.Group(); const skin = std('#f1c7a5');
+  const add = (geo, mat, x, y, z, rx = 0, rz = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, 0, rz); m.castShadow = true; r.add(m); return m; };
+  const jacket = std(o.jacket), pants = std(o.pants), boots = std('#141018', 0.4);
+  // torso (leaning forward), hips
+  const torso = add(new THREE.CapsuleGeometry(0.17, 0.38, 4, 10), jacket, 0, 0.42, 0.04, 0.35);
+  add(new THREE.BoxGeometry(0.36, 0.18, 0.28), pants, 0, 0.12, -0.05);
+  // legs: thigh forward/down, shin down, boot
+  for (const s of [-1, 1]) {
+    add(new THREE.CapsuleGeometry(0.075, 0.3, 4, 8), pants, s * 0.24, 0.02, 0.08, 1.1, s * 0.25);
+    add(new THREE.CapsuleGeometry(0.065, 0.3, 4, 8), boots, s * 0.33, -0.28, 0.12, -0.15, s * 0.12);
+    // arms reaching to reins
+    add(new THREE.CapsuleGeometry(0.055, 0.32, 4, 8), jacket, s * 0.2, 0.5, 0.25, 1.15, 0);
+    add(new THREE.SphereGeometry(0.06, 8, 6), std('#222'), s * 0.12, 0.42, 0.45);
+  }
+  // head + riding helmet with brim
+  const head = add(new THREE.SphereGeometry(0.13, 14, 10), skin, 0, 0.83, 0.16);
+  const helm = add(new THREE.SphereGeometry(0.15, 16, 10, 0, Math.PI * 2, 0, Math.PI / 1.9), std(o.helmet, 0.3), 0, 0.86, 0.16);
+  add(new THREE.CylinderGeometry(0.02, 0.02, 0.01, 3), std(o.helmet), 0, 0.86, 0.16);
+  const brim = add(new THREE.BoxGeometry(0.2, 0.025, 0.1), std(o.helmet, 0.3), 0, 0.86, 0.32, 0.25);
+  r.userData = { torso, head, helm };
+  return r;
+}
+function makeHorse(colorHex, isMe, o = outfit) {
   const g = new THREE.Group();
   const mesh = horseProto.clone();
   mesh.material = horseProto.material.clone();
-  if (!isMe) mesh.material.color = new THREE.Color(colorHex).lerp(new THREE.Color(0xffffff), 0.35);
+  const t = COAT_TINT[o.coat] || [1, 1, 1]; mesh.material.color.setRGB(t[0], t[1], t[2]);
   mesh.scale.setScalar(horseScale); mesh.position.y = horseYOff;
   mesh.castShadow = true;
   g.add(mesh);
-  // saddle blanket in player color
-  const pad = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.08, 0.9), new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.7 }));
-  pad.position.set(0, 1.5, 0.05); pad.castShadow = true; g.add(pad);
+  // saddle pad + saddle (follow the horse's back)
+  const pad = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.04, 0.7), std(o.pad, 0.9));
+  const saddle = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.3, 0.1, 14, 1, false), std('#3b2416', 0.45));
+  saddle.scale.z = 1.3; saddle.position.y = 0.05; pad.add(saddle);
+  pad.position.set(0, 1.47, 0.12); pad.castShadow = true; g.add(pad);
+  const rider = makeRider(o); rider.position.set(0, 1.62, 0.05); g.add(rider);
   const mixer = new THREE.AnimationMixer(mesh);
   const act = mixer.clipAction(horseClip); act.play(); act.time = Math.random();
-  g.userData = { mixer, pad, mesh };
+  g.userData = { mixer, pad, mesh, rider, phase: Math.random() * 6 };
   scene.add(g);
   return g;
 }
+function rebuildMyHorse() { if (!horseProto) return; if (horse) scene.remove(horse); horse = makeHorse(me.color, true, outfit); }
 function nameSprite(text, color) {
   const tex = canvasTex(256, 64, (g, w, h) => {
-    g.font = '700 34px Fredoka, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    const tw = g.measureText(text).width + 30; g.fillStyle = color; g.beginPath(); g.roundRect((w - tw) / 2, 6, tw, 52, 26); g.fill();
+    g.font = '40px VT323, monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    const tw = g.measureText(text).width + 30; g.fillStyle = color; g.fillRect((w - tw) / 2, 8, tw, 50); g.fillStyle='rgba(0,0,0,.35)'; g.fillRect((w - tw) / 2, 52, tw, 6);
     g.fillStyle = '#fff'; g.fillText(text, w / 2, h / 2 + 2);
   });
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
@@ -267,7 +359,7 @@ function buildCourse(seed) {
   const ev = []; let qi = 0;
   for (let z = 120; z < 15000; z += GATE_GAP) {
     const q = qs[qi++ % qs.length]; const order = shuffle([1, 2, 3], r);
-    ev.push({ type: 'gate', z, q: q[0], opts: order.map(i => q[i]), correct: order.indexOf(1) });
+    ev.push({ type: 'gate', z, survey: q[0][0] === '*', q: q[0].replace(/^\*/, ''), opts: order.map(i => q[i]), correct: order.indexOf(1) });
     ev.push({ type: 'fence', z: z + 60, style: r() < 0.5 ? 0 : 1 });
     if (r() < 0.75) ev.push({ type: 'fence', z: z + 115, style: r() < 0.5 ? 0 : 1 });
     for (const [start, n] of [[18, 6], [78, 5], [130, 6]]) {
@@ -279,12 +371,12 @@ function buildCourse(seed) {
 }
 function answerTex(letter, text, col) {
   return canvasTex(512, 256, (g, w, h) => {
-    g.fillStyle = col; g.beginPath(); g.roundRect(0, 0, w, h, 36); g.fill();
+    g.fillStyle = '#12062a'; g.fillRect(0, 0, w, h); g.fillStyle = col; g.fillRect(10, 10, w - 20, h - 20);
     g.fillStyle = 'rgba(255,255,255,.18)'; g.fillRect(0, 0, w, h * 0.45);
     g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    let fs = 78; g.font = `700 ${fs}px Fredoka, sans-serif`;
-    while (g.measureText(text).width > w - 50 && fs > 30) { fs -= 4; g.font = `700 ${fs}px Fredoka, sans-serif`; }
-    g.shadowColor = 'rgba(0,0,0,.35)'; g.shadowOffsetY = 4; g.fillText(text, w / 2, h / 2 + 4);
+    let fs = 110; g.font = `${fs}px VT323, monospace`;
+    while (g.measureText(text).width > w - 50 && fs > 30) { fs -= 4; g.font = `${fs}px VT323, monospace`; }
+    g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowOffsetY = 6; g.shadowOffsetX = 6; g.fillText(text, w / 2, h / 2 + 4);
   });
 }
 const postGeo = new THREE.CylinderGeometry(0.12, 0.12, 4.2, 10);
@@ -338,31 +430,42 @@ let effects = { boost: 0, slow: 0, slowMult: 1, mud: 0 };
 let bots = [];
 
 const SHOP = [
-  { key: 'speedLvl', name: '⚡ Speed', cost: l => 20 + l * 20, max: 5 },
-  { key: 'boostLvl', name: '🚀 Boost', cost: l => 15 + l * 15, max: 5 },
-  { key: 'multLvl', name: '🥕 x Carrots', cost: l => 30 + l * 30, max: 4 },
-  { key: 'mud', name: '💩 Mud Leader', cost: () => 25, max: 99 },
+  { key: 'speedLvl', name: 'FASTER', desc: 'horse runs faster', cost: l => 20 + l * 20, max: 5 },
+  { key: 'boostLvl', name: 'BOOST+', desc: 'bigger answer boost', cost: l => 15 + l * 15, max: 5 },
+  { key: 'hack', name: 'HACK', desc: 'steal 30% from richest', cost: () => 20, max: 99 },
+  { key: 'mud', name: 'MUD', desc: 'slow down 1st place', cost: () => 25, max: 99 },
 ];
+const ONE_SHOT = k => k === 'mud' || k === 'hack';
 function renderShop() {
   $('shop').innerHTML = SHOP.map((s, i) => {
-    const lvl = s.key === 'mud' ? 0 : me[s.key]; const c = s.cost(lvl); const maxed = lvl >= s.max;
-    return `<button class="sbtn ${me.coins >= c && !maxed ? 'can' : ''}" data-i="${i}" ${maxed ? 'disabled' : ''}><b>${s.name}${s.key !== 'mud' ? ' ' + lvl : ''}</b><span>${maxed ? 'MAX' : '🥕 ' + c}</span><div class="k">[${i + 1}]</div></button>`;
+    const lvl = ONE_SHOT(s.key) ? 0 : me[s.key]; const c = s.cost(lvl); const maxed = lvl >= s.max;
+    return `<button class="sbtn ${me.coins >= c && !maxed ? 'can' : ''}" data-i="${i}" ${maxed ? 'disabled' : ''}><b>[${i + 1}] ${s.name}${ONE_SHOT(s.key) ? '' : ' LV' + lvl}</b><i>${s.desc}</i><span>${maxed ? 'MAX' : '🥕' + c}</span></button>`;
   }).join('');
 }
 $('shop').addEventListener('pointerdown', e => { const b = e.target.closest('.sbtn'); if (b) { e.preventDefault(); buy(+b.dataset.i); } });
 function buy(i) {
   if (mode !== 'race') return;
-  const s = SHOP[i]; const lvl = s.key === 'mud' ? 0 : me[s.key]; const c = s.cost(lvl);
+  const s = SHOP[i]; const lvl = ONE_SHOT(s.key) ? 0 : me[s.key]; const c = s.cost(lvl);
   if (me.coins < c || lvl >= s.max) { sfx.bad(); return; }
   me.coins -= c; sfx.buy();
-  if (s.key === 'mud') throwMud(); else { me[s.key]++; feed(`Upgraded ${s.name}!`); }
+  if (s.key === 'mud') throwMud(); else if (s.key === 'hack') doHack(); else { me[s.key]++; feed(`Upgraded ${s.name}!`); }
   renderShop();
 }
 function throwMud() {
   if (solo) { const lead = [...bots].sort((a, b) => b.z - a.z)[0]; lead.slow = 3; feed(`💩 You mudded ${lead.name}!`); return; }
   send({ t: 'mud', from: me.id });
 }
-function applyMud(fromName) { effects.mud = 3; sfx.bad(); toast(`💩 ${fromName} MUDDED YOU!`, '#c08a4a'); }
+function doHack() {
+  sfx.hack();
+  if (solo) { const rich = [...bots].sort((a, b) => (b.coins || 0) - (a.coins || 0))[0]; const amt = Math.max(5, Math.floor((rich.coins || 30) * 0.3)); rich.coins = Math.max(0, (rich.coins || 30) - amt); me.coins += amt; toast(`HACKED ${rich.name} +${amt}`, '#4dff8a'); renderShop(); return; }
+  send({ t: 'hack', from: me.id });
+}
+function applyHack(d) {
+  const amt = Math.floor(me.coins * 0.3); me.coins -= amt; sfx.hack(); renderShop();
+  toast(`${d.from} HACKED YOU -${amt}`, '#4dff8a'); glitch = 1.2;
+  send({ t: 'loot', to: d.fromId, amount: amt, victim: me.name });
+}
+function applyMud(fromName) { effects.mud = 3; sfx.mud(); toast(`💩 ${fromName} MUDDED YOU!`, '#c08a4a'); }
 
 // ---------------- UI HELPERS ----------------
 function show(id) { document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === id)); }
@@ -381,10 +484,18 @@ function hostHandle(fromId, d) {
   if (d.t === 'hello') {
     if (mode !== 'lobby') { conns.get(fromId)?.send({ t: 'full' }); return; }
     const used = Object.values(players).map(p => p.color);
-    players[fromId] = { name: d.name, color: COLORS.find(c => !used.includes(c)) || COLORS[0], z: 0, x: 0, y: 0, coins: 0, correct: 0 };
+    players[fromId] = { outfit: d.outfit, name: d.name, color: COLORS.find(c => !used.includes(c)) || COLORS[0], z: 0, x: 0, y: 0, coins: 0, correct: 0 };
     broadcast({ t: 'lobby', players, you: null }); conns.get(fromId)?.send({ t: 'you', id: fromId }); renderLobby();
   } else if (d.t === 'state') {
     if (players[fromId]) Object.assign(players[fromId], d.s);
+  } else if (d.t === 'hack') {
+    const rich = Object.entries(players).filter(([id]) => id !== fromId).sort((a, b) => (b[1].coins || 0) - (a[1].coins || 0))[0];
+    if (!rich) return;
+    const msg = { t: 'hacked', target: rich[0], from: players[fromId]?.name || '?', fromId, targetName: rich[1].name };
+    broadcast(msg); clientHandle(msg);
+  } else if (d.t === 'loot') {
+    const msg = { t: 'loot', to: d.to, amount: d.amount, victim: d.victim, thief: players[d.to]?.name };
+    broadcast(msg); clientHandle(msg);
   } else if (d.t === 'mud') {
     const lead = Object.entries(players).filter(([id]) => id !== fromId).sort((a, b) => b[1].z - a[1].z)[0];
     if (!lead) return;
@@ -399,6 +510,8 @@ function clientHandle(d) {
   else if (d.t === 'start') { startRace(d.seed, d.players); }
   else if (d.t === 'states') { for (const id in d.players) if (id !== me.id) players[id] = d.players[id]; }
   else if (d.t === 'mudded') { if (d.target === me.id) applyMud(d.from); else feed(`💩 ${d.from} mudded ${d.targetName}!`); }
+  else if (d.t === 'hacked') { if (d.target === me.id) applyHack(d); }
+  else if (d.t === 'loot') { if (d.to === me.id) { me.coins += d.amount; toast(`STOLE ${d.amount} FROM ${d.victim}!`, '#4dff8a'); renderShop(); } else feed(`💾 ${d.thief} hacked ${d.victim} (-${d.amount})`); }
   else if (d.t === 'full') { $('menuErr').textContent = 'That race already started. Ask host to Race Again.'; show('menu'); }
 }
 function newPeer(id) {
@@ -415,7 +528,7 @@ async function createGame() {
     try {
       peer = await newPeer(PREFIX + code);
       isHost = true; solo = false; me.id = 'host';
-      players = { host: { name: me.name, color: COLORS[0], z: 0, x: 0, y: 0, coins: 0, correct: 0 } };
+      players = { host: { outfit, name: me.name, color: COLORS[0], z: 0, x: 0, y: 0, coins: 0, correct: 0 } };
       peer.on('connection', c => {
         c.on('open', () => conns.set(c.peer, c));
         c.on('data', d => hostHandle(c.peer, d));
@@ -439,7 +552,7 @@ async function joinGame() {
     peer = await newPeer();
     peer.on('error', e => { if (e.type === 'peer-unavailable') { $('menuErr').textContent = 'No game with that code 🤔'; show('menu'); } });
     conn = peer.connect(PREFIX + code, { reliable: true });
-    conn.on('open', () => { conn.send({ t: 'hello', name: me.name }); isHost = false; solo = false; mode = 'lobby'; $('lobbyCode').textContent = code; $('lobbyLink').textContent = ''; $('menuErr').textContent = ''; show('lobby'); });
+    conn.on('open', () => { conn.send({ t: 'hello', name: me.name, outfit }); isHost = false; solo = false; mode = 'lobby'; $('lobbyCode').textContent = code; $('lobbyLink').textContent = ''; $('menuErr').textContent = ''; show('lobby'); });
     conn.on('data', clientHandle);
     conn.on('close', () => { $('menuErr').textContent = 'Host left the game.'; mode = 'menu'; show('menu'); $('hud').classList.remove('on'); });
   } catch (e) { $('menuErr').textContent = 'Could not connect: ' + e.type; }
@@ -469,20 +582,19 @@ function startRace(seed, plist) {
   Object.assign(me, { z: 0, x: 0, lane: 1, y: 0, vy: 0, coins: 0, correct: 0, speedLvl: 0, boostLvl: 0, multLvl: 0 });
   effects = { boost: 0, slow: 0, slowMult: 1, mud: 0 };
   me.color = players[me.id]?.color || COLORS[0];
-  if (horse) scene.remove(horse);
-  horse = makeHorse(me.color, true);
+  rebuildMyHorse(); startMusic();
   for (const id in players) if (id !== me.id) makeGhost(id, players[id]);
-  if (solo) bots.forEach(b => { Object.assign(b, { z: 0, slow: 0, boost: 0 }); makeGhost(b.id, b); });
+  if (solo) bots.forEach(b => { Object.assign(b, { z: 0, slow: 0, boost: 0, coins: 0 }); makeGhost(b.id, b); });
   mode = 'count'; raceStart = performance.now() / 1000 + 3;
   show(null); $('hud').classList.add('on'); renderShop(); $('feed').innerHTML = '';
   if (matchMedia('(pointer:coarse)').matches) $('touch').style.display = 'block';
 }
 function makeGhost(id, p) {
-  const g = makeHorse(p.color, false); g.add(nameSprite(p.name, p.color));
+  const g = makeHorse(p.color, false, p.outfit || { ...defaultOutfit(), coat: WARD.coat[Math.floor(Math.random() * 6)], jacket: p.color, pad: p.color }); g.add(nameSprite(p.name, p.color));
   ghosts[id] = { g, tz: 0, tx: 0, ty: 0 };
 }
 function endRace() {
-  mode = 'results';
+  mode = 'results'; stopMusic();
   $('hud').classList.remove('on'); $('touch').style.display = 'none';
   const all = solo ? [{ ...me, name: me.name }, ...bots] : Object.entries(players).map(([id, p]) => id === me.id ? { ...p, z: me.z, correct: me.correct, name: me.name } : p);
   all.sort((a, b) => b.z - a.z);
@@ -495,7 +607,8 @@ function endRace() {
 
 function laneIndexOf(x) { let best = 0; LANES.forEach((lx, i) => { if (Math.abs(lx - x) < Math.abs(LANES[best] - x)) best = i; }); return best; }
 function steer(dir) { if (mode === 'race' || mode === 'count') me.lane = clamp(me.lane + dir, 0, 2); }
-function jump() { if (mode === 'race' && me.y <= 0.001) { me.vy = 9; sfx.jump(); } }
+function jump() { if (mode === 'race' && me.y <= 0.001) { me.vy = 9; sfx.jump(); airborne = true; } }
+let airborne = false;
 
 function triggerEvent(e) {
   if (e.type === 'gate') {
@@ -503,17 +616,17 @@ function triggerEvent(e) {
     if (lane === e.correct) {
       const gain = 10 * (1 + me.multLvl);
       me.coins += gain; me.correct++; effects.boost = 2.6; sfx.good();
-      toast(`✅ CORRECT! +${gain}🥕`, '#7dffb0');
+      toast(`CORRECT! +${gain}`, '#4dff8a');
       e.banners[lane].material.emissive.set(0x22ff88); e.banners[lane].material.emissiveIntensity = 0.6;
     } else {
       effects.slow = 1.3; effects.slowMult = 0.45; sfx.bad();
-      toast(`❌ ${e.opts[e.correct]}`, '#ff8fa3');
+      toast(`WRONG: ${e.opts[e.correct]}`, '#ff4060');
       e.banners[e.correct].material.emissive.set(0x22ff88); e.banners[e.correct].material.emissiveIntensity = 0.6;
     }
     e.done = true; renderShop();
   } else if (e.type === 'fence') {
-    if (me.y < 1.0) { e.knocked = 0.001; effects.slow = 1.0; effects.slowMult = 0.4; sfx.knock(); toast('💥 RAIL DOWN!', '#ffd166'); shake = 0.4; }
-    else { me.coins += 2; toast('Clear! +2🥕', '#fff'); renderShop(); }
+    if (me.y < 1.0) { e.knocked = 0.001; effects.slow = 1.0; effects.slowMult = 0.4; sfx.knock(); toast('RAIL DOWN!', '#ffe12b'); shake = 0.4; }
+    else { me.coins += 2; toast('CLEAR! +2', '#3df5ff'); renderShop(); }
   } else if (e.type === 'carrot') {
     if (laneIndexOf(me.x) === e.lane && Math.abs(LANES[e.lane] - me.x) < 1.4 && me.y < 2) {
       me.coins += 1 + me.multLvl; e.obj.visible = false; sfx.coin(); renderShop();
@@ -521,12 +634,12 @@ function triggerEvent(e) {
   }
 }
 
-let shake = 0, lastNet = 0, lastShopRender = 0;
+let lastCount = 0, glitch = 0, shake = 0, lastNet = 0, lastShopRender = 0;
 function updateQuestion() {
   const next = active.find(e => e.type === 'gate' && !e.done && e.z > me.z) || course.find(e => e.type === 'gate' && e.z > me.z);
   if (next !== curGate) {
     curGate = next;
-    if (next) { $('qtext').textContent = next.q; next.opts.forEach((o, i) => $('op' + i).textContent = ['◀ ', '▲ ', '▶ '][i] + o); }
+    if (next) { $('qkind').textContent = next.survey ? '★ SURVEY SAYS ★' : 'QUIZ'; $('qkind').className = next.survey ? 'survey' : ''; $('qtext').textContent = next.q; next.opts.forEach((o, i) => $('op' + i).textContent = ['◀ ', '▲ ', '▶ '][i] + o); }
   }
   $('qbox').style.opacity = next && next.z - me.z < GATE_GAP + 10 ? 1 : 0;
 }
@@ -551,7 +664,8 @@ function tick() {
   if (mode === 'count') {
     const left = raceStart - now;
     $('count').textContent = left > 0 ? Math.ceil(left) : 'GO!';
-    if (left <= 0) { mode = 'race'; sfx.good(); setTimeout(() => { if ($('count').textContent === 'GO!') $('count').textContent = ''; }, 700); }
+    if (Math.ceil(left) !== lastCount && left > 0) { lastCount = Math.ceil(left); sfx.count(false); }
+    if (left <= 0) { mode = 'race'; sfx.count(true); lastCount = 0; setTimeout(() => { if ($('count').textContent === 'GO!') $('count').textContent = ''; }, 700); }
   }
   let speed = 0;
   if (mode === 'race') {
@@ -572,7 +686,7 @@ function tick() {
     if (solo) bots.forEach(b => {
       b.slow = Math.max(0, (b.slow || 0) - dt); b.boost = Math.max(0, (b.boost || 0) - dt);
       if (Math.random() < dt * 0.12) b.boost = 2.5; if (Math.random() < dt * 0.1) b.slow = 1.2;
-      b.z += (BASE_SPEED * b.skill) * (b.boost ? 1.5 : 1) * (b.slow ? 0.5 : 1) * dt;
+      b.coins = (b.coins || 0) + dt * 2; b.z += (BASE_SPEED * b.skill) * (b.boost ? 1.5 : 1) * (b.slow ? 0.5 : 1) * dt;
       b.x = LANES[Math.floor(b.z / 90 + b.skill * 7) % 3];
     });
     // network
@@ -586,18 +700,19 @@ function tick() {
     updateQuestion();
     $('dist').textContent = `${Math.floor(me.z)} m`;
     $('coins').textContent = me.coins;
-    $('mud').style.opacity = effects.mud > 0 ? 1 : 0;
+    $('mud').style.opacity = effects.mud > 0 ? 1 : 0; glitch = Math.max(0, glitch - dt); canvas.style.filter = glitch > 0 ? `hue-rotate(${Math.random() * 360}deg) contrast(1.4)` : '';
     hoofbeat(now, speed);
   }
 
   // player physics
   me.x = lerp(me.x, LANES[me.lane], 1 - Math.exp(-dt * 10));
-  me.vy -= 26 * dt; me.y = Math.max(0, me.y + me.vy * dt); if (me.y === 0) me.vy = Math.max(0, me.vy);
+  me.vy -= 26 * dt; me.y = Math.max(0, me.y + me.vy * dt); if (me.y === 0) { me.vy = Math.max(0, me.vy); if (airborne) { airborne = false; sfx.land(); } }
 
   if (horse) {
     horse.position.set(me.x, me.y, me.z);
     horse.rotation.y = (LANES[me.lane] - me.x) * 0.12;
     horse.rotation.x = me.y > 0 ? -clamp(me.vy * 0.04, -0.35, 0.35) : 0;
+    { const ud = horse.userData; ud.phase += dt * (mode === 'race' ? speed / BASE_SPEED : 0.3) * 9; ud.rider.position.y = 1.62 + Math.abs(Math.sin(ud.phase)) * 0.07; ud.rider.rotation.x = me.y > 0 ? 0.25 : Math.sin(ud.phase) * 0.04; }
     horse.userData.mixer.update(dt * (mode === 'race' ? speed / BASE_SPEED : 0.25) * 1.1);
     if (mode === 'race' && me.y === 0 && Math.random() < 0.6) emitDust(me.x, me.z);
   }
@@ -609,6 +724,7 @@ function tick() {
     gh.g.position.x = lerp(gh.g.position.x, p.x || 0, k);
     gh.g.position.y = lerp(gh.g.position.y, p.y || 0, k);
     gh.g.position.z = mode === 'race' ? lerp(gh.g.position.z, (p.z || 0) + (solo ? 0 : speed * 0.1), k) : (p.z || 0);
+    { const ud = gh.g.userData; ud.phase += dt * 9; ud.rider.position.y = 1.62 + Math.abs(Math.sin(ud.phase)) * 0.07; }
     gh.g.userData.mixer.update(dt * (mode === 'race' ? 1.1 : 0.25));
   }
   // course anim
@@ -631,8 +747,8 @@ function tick() {
   camera.fov = lerp(camera.fov, fovT, 1 - Math.exp(-dt * 4)); camera.updateProjectionMatrix();
   shake = Math.max(0, shake - dt);
   const camX = me.x * 0.55 + (Math.random() - .5) * shake, camY = 3.7 + me.y * 0.4 + (Math.random() - .5) * shake;
-  if (mode === 'menu' || mode === 'lobby') {
-    const a = now * 0.25; camera.position.set(me.x + Math.sin(a) * 7, 2.6, me.z + Math.cos(a) * 7); camera.lookAt(me.x, 1.3, me.z);
+  if (mode === 'menu' || mode === 'lobby' || mode === 'wardrobe') {
+    const a = now * 0.25; const wd = mode === 'wardrobe'; camera.position.set(me.x + Math.sin(a) * (wd ? 5 : 7), wd ? 2.4 : 2.6, me.z + Math.cos(a) * (wd ? 5 : 7)); camera.lookAt(me.x + (wd ? -1.6 : 0), wd ? 1.6 : 1.3, me.z);
   } else {
     camera.position.set(lerp(camera.position.x, camX, 1 - Math.exp(-dt * 6)), camY, pz - 7.2);
     camera.lookAt(me.x * 0.75, 1.7 + me.y * 0.3, pz + 9);
@@ -647,6 +763,7 @@ addEventListener('keydown', e => {
   if (['ArrowRight', 'd', 'D'].includes(e.key)) steer(1);
   if ([' ', 'ArrowUp', 'w', 'W'].includes(e.key)) { e.preventDefault(); jump(); }
   if ('1234'.includes(e.key) && e.key.length === 1) buy(+e.key - 1);
+  if (e.key === 'm' || e.key === 'M') toggleMute();
 });
 $('tL').addEventListener('pointerdown', e => { e.preventDefault(); steer(-1); });
 $('tR').addEventListener('pointerdown', e => { e.preventDefault(); steer(1); });
@@ -673,6 +790,20 @@ addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); ca
 // ---------------- BOOT ----------------
 $('name').value = localStorage.getItem('hr_name') || '';
 const qc = new URLSearchParams(location.search).get('code'); if (qc) $('joinCode').value = qc.toUpperCase();
+function buildWardrobe() {
+  for (const k of Object.keys(WARD)) {
+    const el = $('sw-' + k);
+    el.innerHTML = WARD[k].map(c => `<button style="background:${c}" data-c="${c}" class="${outfit[k] === c ? 'sel' : ''}"></button>`).join('');
+    el.onclick = e => { const b = e.target.closest('button'); if (!b) return; outfit[k] = b.dataset.c; localStorage.setItem('hr_outfit', JSON.stringify(outfit)); sfx.buy(); buildWardrobe(); rebuildMyHorse(); };
+  }
+}
+$('wardBtn').onclick = () => { mode = 'wardrobe'; buildWardrobe(); show('wardrobe'); };
+$('wardDone').onclick = () => { mode = 'menu'; show('menu'); };
+const setMuteLabel = () => $('muteBtn').textContent = muted ? '🔇 MUTED [M]' : '🔊 SOUND [M]';
+setMuteLabel();
+function toggleMute() { muted = !muted; localStorage.setItem('hr_muted', muted ? '1' : '0'); setMuteLabel(); if (masterGain) masterGain.gain.value = muted ? 0 : 1; }
+$('muteBtn').onclick = e => { e.stopPropagation(); toggleMute(); };
+await Promise.all([document.fonts.load('40px VT323'), document.fonts.load('20px "Press Start 2P"')]).catch(() => {});
 new GLTFLoader().load('models/Horse.glb', gltf => {
   horseProto = gltf.scene.getObjectByProperty('type', 'Mesh') || gltf.scene.children[0];
   horseClip = gltf.animations[0];
@@ -680,6 +811,6 @@ new GLTFLoader().load('models/Horse.glb', gltf => {
   const size = box.getSize(new THREE.Vector3());
   horseScale = 2.3 / size.y; horseYOff = -box.min.y * horseScale;
   window.__horseInfo = { size: size.toArray(), min: box.min.toArray(), rot: horseProto.rotation.toArray() };
-  horse = makeHorse(COLORS[0], true);
+  rebuildMyHorse();
   $('loading').remove(); show('menu'); tick();
 });

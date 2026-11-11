@@ -3,111 +3,152 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Hoof Rush</title>
+<title>HOOF RUSH</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
 <style>
+:root{--bg:#12062a;--panel:#241048;--panel2:#341a66;--edge:#b388ff;--hi:#e9d8ff;--pac:#ffe12b;--pink:#ff5fd2;--cyan:#3df5ff;--red:#ff4060;--green:#4dff8a}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{width:100%;height:100%;overflow:hidden;background:#0d1b2a;font-family:'Fredoka',system-ui,sans-serif;color:#fff;user-select:none}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:'VT323',monospace;color:var(--hi);user-select:none;image-rendering:pixelated}
+.px{font-family:'Press Start 2P',monospace}
 canvas#c{position:fixed;inset:0;width:100%;height:100%;display:block}
-.screen{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:20;background:radial-gradient(ellipse at center,rgba(20,30,60,.35),rgba(5,10,25,.8))}
+/* pixel box: stepped corners via box-shadow */
+.pbox{background:var(--panel);box-shadow:0 -4px 0 0 var(--edge),0 4px 0 0 var(--edge),-4px 0 0 0 var(--edge),4px 0 0 0 var(--edge),0 0 0 4px var(--bg) inset,8px 8px 0 4px rgba(0,0,0,.45)}
+.scan{position:fixed;inset:0;pointer-events:none;z-index:60;background:repeating-linear-gradient(0deg,rgba(0,0,0,.10) 0 2px,transparent 2px 4px)}
+.screen{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:20;background:rgba(18,6,42,.55)}
 .screen.on{display:flex}
-.card{background:rgba(255,255,255,.96);color:#1d2340;border-radius:28px;padding:34px 38px;width:min(440px,92vw);box-shadow:0 20px 60px rgba(0,0,0,.45),0 0 0 6px rgba(255,255,255,.15);text-align:center}
-.logo{font-size:56px;font-weight:700;line-height:1;letter-spacing:-1px;background:linear-gradient(180deg,#ffb33d,#ff6a3d);-webkit-background-clip:text;color:transparent;filter:drop-shadow(0 3px 0 #7a2e10)}
-.tag{color:#6a7194;margin:8px 0 22px;font-size:16px}
-input{width:100%;font:inherit;font-size:20px;padding:14px 16px;border-radius:14px;border:3px solid #dfe3f2;outline:none;text-align:center;color:#1d2340;margin-bottom:12px}
-input:focus{border-color:#7b61ff}
-.btn{display:block;width:100%;font:inherit;font-weight:700;font-size:21px;padding:14px;border:none;border-radius:16px;cursor:pointer;color:#fff;margin-top:10px;box-shadow:0 6px 0 rgba(0,0,0,.25);transition:transform .08s}
-.btn:active{transform:translateY(4px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
-.purple{background:#7b61ff}.green{background:#22c06b}.orange{background:#ff8a2b}.gray{background:#9aa0b8}
-.row{display:flex;gap:10px}.row input{margin:10px 0 0;flex:1;text-transform:uppercase;letter-spacing:6px}.row .btn{width:auto;padding:14px 22px}
-.or{color:#aab;margin:16px 0 4px;font-size:14px}
-.code{font-size:64px;font-weight:700;letter-spacing:10px;color:#7b61ff;margin:4px 0}
-.plist{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:16px 0;min-height:44px}
-.chip{padding:8px 14px;border-radius:999px;color:#fff;font-weight:600}
-.err{color:#e5484d;min-height:20px;margin-top:8px;font-size:15px}
-.small{font-size:14px;color:#6a7194}
+.card{padding:30px 32px;width:min(460px,92vw);text-align:center}
+.logo{font-family:'Press Start 2P';font-size:clamp(28px,6vw,44px);color:var(--pac);text-shadow:4px 4px 0 var(--pink),8px 8px 0 #4a1a8a;line-height:1.15}
+.tag{font-size:22px;color:var(--edge);margin:14px 0 18px}
+.pac{height:28px;position:relative;margin:4px auto 10px;width:260px;overflow:hidden}
+.pac .man{position:absolute;left:0;top:2px;width:24px;height:24px;border-radius:50%;background:var(--pac);animation:run 4s steps(40) infinite}
+.pac .man::after{content:'';position:absolute;right:-1px;top:6px;border:6px solid transparent;border-right:13px solid var(--panel);animation:chomp .25s steps(2) infinite}
+.pac .dots{position:absolute;inset:12px 0 0 30px;height:4px;background:repeating-linear-gradient(90deg,var(--hi) 0 4px,transparent 4px 22px)}
+@keyframes run{from{left:-24px}to{left:260px}}@keyframes chomp{50%{border-width:0;border-right-width:0}}
+label{display:block;font-family:'Press Start 2P';font-size:10px;color:var(--cyan);text-align:left;margin:10px 0 6px}
+input{width:100%;font-family:'VT323';font-size:28px;padding:8px 12px;background:var(--bg);color:var(--pac);border:none;outline:none;box-shadow:0 0 0 3px var(--edge);text-align:center}
+input:focus{box-shadow:0 0 0 3px var(--pac)}
+input::placeholder{color:#6b4fa0}
+.btn{display:block;width:100%;font-family:'Press Start 2P';font-size:14px;padding:14px 10px;border:none;cursor:pointer;color:var(--bg);margin-top:14px;box-shadow:inset -4px -4px 0 rgba(0,0,0,.3),inset 4px 4px 0 rgba(255,255,255,.35),4px 4px 0 #000}
+.btn:active{transform:translate(3px,3px);box-shadow:inset -4px -4px 0 rgba(0,0,0,.3),1px 1px 0 #000}
+.btn:hover{filter:brightness(1.12)}
+.yel{background:var(--pac)}.pnk{background:var(--pink)}.cyn{background:var(--cyan)}.grn{background:var(--green)}.dim{background:#7a5cc2;color:#fff}
+.row{display:flex;gap:10px;align-items:flex-end}.row input{flex:1;letter-spacing:8px;text-transform:uppercase}.row .btn{width:auto;margin:0;padding:14px 16px}
+.err{color:var(--red);min-height:22px;margin-top:10px;font-size:22px}
+.small{font-size:20px;color:var(--edge)}
+.code{font-family:'Press Start 2P';font-size:46px;letter-spacing:8px;color:var(--pac);margin:10px 0;text-shadow:4px 4px 0 var(--pink)}
+.plist{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:18px 0;min-height:40px}
+.chip{padding:6px 12px;font-size:24px;color:#fff;box-shadow:3px 3px 0 #000}
+/* wardrobe */
+#wardrobe{justify-content:flex-start;padding-left:4vw;background:linear-gradient(90deg,rgba(18,6,42,.75),transparent 60%)}
+.sw{display:flex;gap:8px;flex-wrap:wrap}
+.sw button{width:38px;height:38px;border:none;cursor:pointer;box-shadow:3px 3px 0 #000}
+.sw button.sel{outline:4px solid var(--pac);outline-offset:2px}
 /* HUD */
 #hud{position:fixed;inset:0;pointer-events:none;z-index:10;display:none}
 #hud.on{display:block}
-#timer{position:absolute;top:14px;left:50%;transform:translateX(-50%);background:rgba(15,20,45,.75);padding:6px 20px;border-radius:999px;font-size:26px;font-weight:700}
-#qbox{position:absolute;top:66px;left:50%;transform:translateX(-50%);width:min(760px,94vw);text-align:center;transition:opacity .25s}
-#qtext{background:#fff;color:#1d2340;font-size:clamp(18px,2.6vw,28px);font-weight:700;padding:12px 22px;border-radius:18px;box-shadow:0 8px 0 rgba(0,0,0,.2)}
-#qopts{display:flex;gap:10px;margin-top:10px}
-.opt{flex:1;padding:10px;border-radius:14px;font-weight:700;font-size:clamp(14px,2vw,20px);box-shadow:0 5px 0 rgba(0,0,0,.25)}
-.o0{background:#ff4d6d}.o1{background:#3a86ff}.o2{background:#ffbe0b;color:#3a2a00}
-.qhint{font-size:13px;opacity:.85;margin-top:6px;text-shadow:0 1px 3px #000}
-#stats{position:absolute;top:14px;left:14px;background:rgba(15,20,45,.75);padding:10px 16px;border-radius:16px;font-size:18px;line-height:1.5}
-#place{font-size:34px;font-weight:700;color:#ffd166}
-#coins{color:#ffb347;font-weight:700}
-#board{position:absolute;top:14px;right:14px;background:rgba(15,20,45,.75);padding:10px 14px;border-radius:16px;min-width:190px;font-size:16px}
-#board div{display:flex;justify-content:space-between;gap:14px;padding:2px 0}
-#board .me{color:#ffd166;font-weight:700}
-#shop{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:8px;pointer-events:auto}
-.sbtn{font:inherit;background:rgba(15,20,45,.85);color:#fff;border:3px solid rgba(255,255,255,.25);border-radius:16px;padding:8px 12px;cursor:pointer;min-width:104px;text-align:center}
-.sbtn b{display:block;font-size:15px}.sbtn span{font-size:13px;color:#ffb347}
-.sbtn.can{border-color:#22c06b}.sbtn:disabled{opacity:.5}
-.sbtn .k{font-size:11px;opacity:.6}
-#toast{position:absolute;top:42%;left:50%;transform:translate(-50%,-50%);font-size:clamp(34px,6vw,64px);font-weight:700;text-shadow:0 4px 0 rgba(0,0,0,.35),0 0 30px rgba(0,0,0,.4);opacity:0;transition:opacity .2s;white-space:nowrap}
-#feed{position:absolute;left:14px;bottom:110px;font-size:16px;text-shadow:0 1px 4px #000;display:flex;flex-direction:column;gap:4px}
-#count{position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);font-size:140px;font-weight:700;text-shadow:0 8px 0 rgba(0,0,0,.3)}
+#timer{position:absolute;top:16px;left:50%;transform:translateX(-50%);padding:8px 16px;font-family:'Press Start 2P';font-size:20px;color:var(--pac)}
+#qbox{position:absolute;top:72px;left:50%;transform:translateX(-50%);width:min(780px,94vw);text-align:center;transition:opacity .25s}
+#qkind{font-family:'Press Start 2P';font-size:11px;color:var(--bg);background:var(--cyan);display:inline-block;padding:5px 8px;margin-bottom:8px}
+#qkind.survey{background:var(--pink)}
+#qtext{padding:12px 18px;font-size:clamp(26px,3.4vw,38px);color:#fff;line-height:1}
+#qopts{display:flex;gap:12px;margin-top:14px}
+.opt{flex:1;padding:8px;font-size:clamp(22px,2.8vw,30px);color:#fff;box-shadow:inset -3px -3px 0 rgba(0,0,0,.3),4px 4px 0 #000}
+.o0{background:#e0306a}.o1{background:#2d6cff}.o2{background:#e8b400;color:#1a0b2e}
+.qhint{font-size:20px;margin-top:8px;color:var(--hi);text-shadow:2px 2px 0 #000}
+#stats{position:absolute;top:16px;left:16px;padding:10px 14px;font-size:24px;line-height:1.15}
+#place{font-family:'Press Start 2P';font-size:22px;color:var(--pac);margin-bottom:6px}
+#coins{color:#ff9d2e}
+#board{position:absolute;top:16px;right:16px;padding:10px 14px;min-width:200px;font-size:22px}
+#board div{display:flex;justify-content:space-between;gap:14px}
+#board .me{color:var(--pac)}
+#shopwrap{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);text-align:center}
+#shoptitle{font-family:'Press Start 2P';font-size:10px;color:var(--pac);margin-bottom:8px;text-shadow:2px 2px 0 #000}
+#shop{display:flex;gap:10px;pointer-events:auto}
+.sbtn{font-family:'VT323';background:var(--panel);color:#fff;border:none;padding:6px 10px;cursor:pointer;width:132px;text-align:center;box-shadow:0 0 0 3px #5a3a9a,4px 4px 0 3px #000}
+.sbtn b{display:block;font-family:'Press Start 2P';font-size:9px;line-height:1.4;color:var(--cyan)}
+.sbtn i{display:block;font-style:normal;font-size:18px;color:var(--hi);line-height:1}
+.sbtn span{font-size:22px;color:#ff9d2e}
+.sbtn.can{box-shadow:0 0 0 3px var(--green),4px 4px 0 3px #000;animation:pulse 1s steps(2) infinite}
+@keyframes pulse{50%{background:var(--panel2)}}
+.sbtn:disabled{opacity:.45;animation:none}
+#toast{position:absolute;top:44%;left:50%;transform:translate(-50%,-50%);font-family:'Press Start 2P';font-size:clamp(20px,3.6vw,38px);text-shadow:4px 4px 0 #000;opacity:0;transition:opacity .15s;white-space:nowrap}
+#feed{position:absolute;left:16px;bottom:130px;font-size:22px;text-shadow:2px 2px 0 #000;display:flex;flex-direction:column;gap:2px}
+#count{position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);font-family:'Press Start 2P';font-size:110px;color:var(--pac);text-shadow:8px 8px 0 var(--pink)}
 #mud{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 30%,rgba(90,55,20,.85));opacity:0;transition:opacity .3s}
 #touch{position:fixed;bottom:0;left:0;right:0;height:45%;display:none;z-index:9}
-#touch div{position:absolute;bottom:90px;width:84px;height:84px;border-radius:50%;background:rgba(255,255,255,.22);border:3px solid rgba(255,255,255,.5);font-size:34px;display:flex;align-items:center;justify-content:center}
-#results .row2{display:flex;justify-content:space-between;padding:10px 14px;border-radius:12px;margin:6px 0;font-size:20px;font-weight:600;background:#f1f3fb}
-#results .row2.first{background:linear-gradient(90deg,#ffd166,#ffb33d)}
-#loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:50;background:#0d1b2a;font-size:26px}
+#touch div{position:absolute;bottom:120px;width:80px;height:80px;background:rgba(36,16,72,.7);box-shadow:0 0 0 3px var(--edge);font-size:36px;display:flex;align-items:center;justify-content:center;color:var(--pac)}
+.row2{display:flex;justify-content:space-between;padding:8px 12px;margin:8px 0;font-size:26px;background:var(--panel2)}
+.row2.first{background:var(--pac);color:var(--bg)}
+#loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:50;background:var(--bg);font-family:'Press Start 2P';font-size:16px;color:var(--pac)}
+#muteBtn{position:fixed;bottom:14px;right:14px;z-index:30;font-family:'Press Start 2P';font-size:10px;padding:8px;background:var(--panel);color:var(--hi);border:none;box-shadow:0 0 0 3px var(--edge);cursor:pointer}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="loading">🐎 Saddling up…</div>
+<div class="scan"></div>
+<div id="loading">LOADING…</div>
+<button id="muteBtn">♪ MUSIC ON</button>
 
 <div id="menu" class="screen">
-  <div class="card">
-    <div class="logo">HOOF RUSH</div>
-    <div class="tag">Gallop. Jump. Answer by riding through the right gate.</div>
-    <input id="name" maxlength="14" placeholder="Your name">
-    <button class="btn purple" id="createBtn">Create Game</button>
-    <div class="row"><input id="joinCode" maxlength="4" placeholder="CODE"><button class="btn green" id="joinBtn">Join</button></div>
-    <button class="btn gray" id="soloBtn" style="font-size:17px;padding:10px">Practice vs bots</button>
+  <div class="card pbox">
+    <div class="logo">HOOF<br>RUSH</div>
+    <div class="pac"><div class="dots"></div><div class="man"></div></div>
+    <div class="tag">Race. Jump. Ride through the right answer.</div>
+    <label>YOUR HORSE'S NAME</label>
+    <input id="name" maxlength="12" placeholder="e.g. Midnight">
+    <button class="btn yel" id="createBtn">CREATE GAME</button>
+    <div class="row"><div style="flex:1"><label>GAME CODE</label><input id="joinCode" maxlength="4" placeholder="ABCD"></div><button class="btn cyn" id="joinBtn">JOIN</button></div>
+    <div class="row"><button class="btn pnk" id="wardBtn" style="flex:1">WARDROBE</button><button class="btn dim" id="soloBtn" style="flex:1">PRACTICE</button></div>
     <div class="err" id="menuErr"></div>
   </div>
 </div>
 
+<div id="wardrobe" class="screen">
+  <div class="card pbox" style="text-align:left;width:min(380px,90vw)">
+    <div class="logo" style="font-size:22px">WARDROBE</div>
+    <label>HELMET</label><div class="sw" id="sw-helmet"></div>
+    <label>JACKET</label><div class="sw" id="sw-jacket"></div>
+    <label>PANTS</label><div class="sw" id="sw-pants"></div>
+    <label>HORSE COAT</label><div class="sw" id="sw-coat"></div>
+    <label>SADDLE PAD</label><div class="sw" id="sw-pad"></div>
+    <button class="btn yel" id="wardDone">DONE</button>
+  </div>
+</div>
+
 <div id="lobby" class="screen">
-  <div class="card">
+  <div class="card pbox">
     <div class="small">GAME CODE</div>
     <div class="code" id="lobbyCode">----</div>
     <div class="small" id="lobbyLink"></div>
     <div class="plist" id="lobbyPlayers"></div>
-    <button class="btn orange" id="startBtn">Start Race!</button>
+    <button class="btn yel" id="startBtn">START RACE!</button>
     <div class="small" id="lobbyWait" style="margin-top:12px">Waiting for host to start…</div>
     <div class="err" id="lobbyErr"></div>
   </div>
 </div>
 
 <div id="results" class="screen">
-  <div class="card">
-    <div class="logo" style="font-size:44px">FINISH!</div>
+  <div class="card pbox">
+    <div class="logo" style="font-size:30px">FINISH!</div>
     <div id="resList" style="margin:18px 0"></div>
-    <button class="btn orange" id="againBtn">Race Again</button>
+    <button class="btn yel" id="againBtn">RACE AGAIN</button>
     <div class="small" id="againWait" style="margin-top:12px">Waiting for host…</div>
   </div>
 </div>
 
 <div id="hud">
   <div id="mud"></div>
-  <div id="timer">2:30</div>
-  <div id="qbox"><div id="qtext"></div><div id="qopts"><div class="opt o0" id="op0"></div><div class="opt o1" id="op1"></div><div class="opt o2" id="op2"></div></div><div class="qhint">Steer into the gate with the right answer! ◀ ▶ to switch lanes · SPACE to jump fences</div></div>
-  <div id="stats"><div id="place">#1</div><div id="dist">0 m</div><div>🥕 <span id="coins">0</span></div></div>
-  <div id="board"></div>
+  <div id="timer" class="pbox">2:30</div>
+  <div id="qbox"><div id="qkind">QUIZ</div><div id="qtext" class="pbox"></div><div id="qopts"><div class="opt o0" id="op0"></div><div class="opt o1" id="op1"></div><div class="opt o2" id="op2"></div></div><div class="qhint">◀ ▶ steer into the right gate · SPACE = jump fences</div></div>
+  <div id="stats" class="pbox"><div id="place">#1</div><div id="dist">0 m</div><div>CARROTS <span id="coins">0</span></div></div>
+  <div id="board" class="pbox"></div>
   <div id="feed"></div>
-  <div id="shop"></div>
+  <div id="shopwrap"><div id="shoptitle">SPEND CARROTS ▼ (KEYS 1-4)</div><div id="shop"></div></div>
   <div id="toast"></div>
   <div id="count"></div>
 </div>
-<div id="touch"><div id="tL" style="left:20px">◀</div><div id="tJ" style="left:50%;transform:translateX(-50%)">⤒</div><div id="tR" style="right:20px">▶</div></div>
+<div id="touch"><div id="tL" style="left:20px">◀</div><div id="tJ" style="left:50%;transform:translateX(-50%)">▲</div><div id="tR" style="right:20px">▶</div></div>
 
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
