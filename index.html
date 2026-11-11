@@ -83,13 +83,16 @@ input::placeholder{color:#6b4fa0}
 .row2.first{background:var(--pac);color:var(--bg)}
 #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:50;background:var(--bg);font-family:'Press Start 2P';font-size:16px;color:var(--pac)}
 #pwPick{display:flex;flex-wrap:wrap;gap:6px}#pwPick button{font-family:'VT323';font-size:20px;padding:4px 8px;border:none;background:var(--panel2);color:var(--hi);cursor:pointer;box-shadow:2px 2px 0 #000}#pwPick button.sel{background:var(--green);color:var(--bg)}
+.opts{display:flex;gap:8px;flex-wrap:wrap}.opts button{flex:1;font-family:'Press Start 2P';font-size:10px;padding:10px 6px;border:none;background:var(--panel2);color:var(--hi);cursor:pointer;box-shadow:3px 3px 0 #000}.opts button.sel{background:var(--pac);color:var(--bg)}
+#matchT{position:fixed;top:16px;left:16px;z-index:30;display:none;padding:8px 12px;font-family:'Press Start 2P';font-size:14px;color:var(--pac)}
 #muteBtn{position:fixed;bottom:14px;right:14px;z-index:30;font-family:'Press Start 2P';font-size:10px;padding:8px;background:var(--panel);color:var(--hi);border:none;box-shadow:0 0 0 3px var(--edge);cursor:pointer}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div id="loading">LOADING…</div>
-<button id="muteBtn">♪ MUSIC ON</button>
+<button id="muteBtn">SOUND</button>
+<div id="matchT" class="pbox"></div>
 
 <div id="menu" class="screen">
   <div class="card pbox">
@@ -123,7 +126,9 @@ input::placeholder{color:#6b4fa0}
     <div class="small">GAME CODE</div>
     <div class="code" id="lobbyCode">----</div>
     <div class="small" id="lobbyLink"></div>
+    <div class="small" id="lobbySettings" style="color:#3df5ff"></div>
     <div class="plist" id="lobbyPlayers"></div>
+    <div id="hostSet" style="text-align:left"><label>QUESTIONS</label><div class="opts" id="setCat"></div><label>MATCH TIME</label><div class="opts" id="setTime"></div></div>
     <button class="btn yel" id="startBtn">START RACE!</button>
     <div class="small" id="lobbyWait" style="margin-top:12px">Waiting for host to start…</div>
     <div class="err" id="lobbyErr"></div>

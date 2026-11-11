@@ -2,10 +2,11 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import { CATEGORIES } from './questions.js';
 
 // ---------------- CONFIG ----------------
 const DURATION = 150;           // seconds per race
-const LANES = [3.2, 0, -3.2];   // screen left -> right
+const LANES = [4.5, 1.5, -1.5, -4.5];   // screen left -> right
 const GATE_GAP = 170;
 const FINISH = 470, ROUNDS = 4, PASSWORDS = ['DRAGON', 'PIZZA', 'GALAXY', 'UNICORN', 'TACO', 'NINJA', 'COOKIE', 'ROCKET'];
 const BASE_SPEED = 16;
@@ -123,7 +124,7 @@ function clop(delay, accent) { // hoof on packed dirt: woody click + low thud
   noise(0.05, 900 + Math.random() * 500, 4, accent ? 0.5 : 0.3, 'bandpass', delay);
   tone(140, 55, 0.09, 'sine', accent ? 0.35 : 0.2, delay);
 }
-const sfx = {
+const sfxSynth = {
   good: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, f, 0.08, 'square', 0.09, i * 0.06)),
   bad: () => { tone(440, 110, 0.5, 'square', 0.08); tone(445, 112, 0.5, 'sawtooth', 0.04); },
   coin: (() => { let w = 0; return () => { w ^= 1; tone(w ? 260 : 520, w ? 520 : 260, 0.09, 'triangle', 0.16); }; })(), // waka
@@ -135,11 +136,37 @@ const sfx = {
   mud: () => { noise(0.4, 250, 2, 0.6, 'lowpass'); tone(120, 50, 0.3, 'sine', 0.3); },
   count: (hi) => tone(hi ? 988 : 494, hi ? 988 : 494, hi ? 0.4 : 0.15, 'square', 0.1),
 };
+const sfx = {
+  good: () => play('correct', 0.8) || sfxSynth.good(),
+  bad: () => play('wrong', 0.7) || sfxSynth.bad(),
+  coin: () => play('chomp', 0.9, 0.95 + Math.random() * 0.15) || sfxSynth.coin(),
+  jump: () => play('jump', 0.6) || sfxSynth.jump(),
+  land: () => play('hoof', 1, 0.85) || sfxSynth.land(),
+  knock: () => play('rail', 1) || sfxSynth.knock(),
+  buy: () => sfxSynth.buy(),
+  hack: () => play('hack', 0.8) || sfxSynth.hack(),
+  mud: () => sfxSynth.mud(),
+  spook: () => play('neigh', 0.9) || sfxSynth.bad(),
+  count: (hi) => sfxSynth.count(hi),
+};
+// real recorded samples (Mixkit free SFX) with synth fallback
+const SFX = {};
+async function loadSfx() {
+  for (const n of ['hoof', 'gallop', 'rail', 'chomp', 'correct', 'wrong', 'hack', 'jump', 'neigh']) {
+    try { const r = await fetch(`sfx/${n}.mp3`); if (!r.ok) continue; SFX[n] = await ac().decodeAudioData(await r.arrayBuffer()); } catch (e) {}
+  }
+}
+function play(n, vol = 1, rate = 1) {
+  if (!SFX[n]) return false; const a = ac(); const s = a.createBufferSource(), g = a.createGain();
+  s.buffer = SFX[n]; s.playbackRate.value = rate; g.gain.value = vol; s.connect(g); g.connect(master); s.start(); return true;
+}
 let lastHoof = 0, hoofStep = 0;
 function hoofbeat(t, speed) { // 3-beat canter/gallop rhythm
   const period = 0.42 * (BASE_SPEED / Math.max(8, speed));
   const gaps = [0, 0.12, 0.24];
-  if (t - lastHoof > period) { lastHoof = t; gaps.forEach((g, i) => clop(g * period / 0.42, i === 2)); }
+  if (t - lastHoof > period) { lastHoof = t;
+    if (SFX.hoof) gaps.forEach((g, i) => setTimeout(() => play('hoof', i === 2 ? 0.9 : 0.6, 0.9 + Math.random() * 0.2), g * period / 0.42 * 1000));
+    else gaps.forEach((g, i) => clop(g * period / 0.42, i === 2)); }
 }
 // chiptune loop
 const MEL = [76, 79, 83, 81, 79, 76, 74, 76, 0, 79, 81, 83, 86, 83, 81, 79, 76, 79, 83, 88, 86, 83, 81, 79, 81, 79, 76, 74, 76, 0, 0, 0];
@@ -208,7 +235,7 @@ const dirtTex = canvasTex(256, 256, (g, w, h) => {
   for (const x of [w * 0.33, w * 0.66]) { g.fillStyle = 'rgba(80,50,25,.18)'; g.fillRect(x - 3, 0, 6, h); }
 }, true);
 dirtTex.repeat.set(2, 110);
-const track = new THREE.Mesh(new THREE.PlaneGeometry(11, 600), new THREE.MeshStandardMaterial({ map: dirtTex, roughness: 1, color: 0xf0c890 }));
+const track = new THREE.Mesh(new THREE.PlaneGeometry(13.4, 600), new THREE.MeshStandardMaterial({ map: dirtTex, roughness: 1, color: 0xf0c890 }));
 track.rotation.x = -Math.PI / 2; track.position.y = 0.02; track.receiveShadow = true; scene.add(track);
 realTex('tex/leafy_grass.jpg', ground, 100, 100); realTex('tex/dirt.jpg', track, 2, 110);
 
@@ -231,11 +258,11 @@ const TREE_N = 160, TREE_RANGE = 420;
 const trunkM = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.25, 0.4, 3, 6), new THREE.MeshStandardMaterial({ color: 0x5a3b22, roughness: 1 }), TREE_N);
 const leafGeo = new THREE.IcosahedronGeometry(2.4, 1);
 const leafM = new THREE.InstancedMesh(leafGeo, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, flatShading: true }), TREE_N);
-trunkM.castShadow = leafM.castShadow = true;
+trunkM.castShadow = leafM.castShadow = true; trunkM.frustumCulled = leafM.frustumCulled = false;
 const trees = [];
 for (let i = 0; i < TREE_N; i++) {
   const side = i % 2 ? 1 : -1;
-  trees.push({ x: side * (13 + Math.random() * 70), z: Math.random() * TREE_RANGE - 30, s: 0.8 + Math.random() * 0.9 });
+  trees.push({ x: side * (15 + Math.random() * 70), z: Math.random() * TREE_RANGE - 30, s: 0.8 + Math.random() * 0.9 });
   leafM.setColorAt(i, new THREE.Color().setHSL(0.24 + Math.random() * 0.08, 0.5, 0.25 + Math.random() * 0.12));
 }
 scene.add(trunkM, leafM);
@@ -254,12 +281,12 @@ const RAIL_SEG = 4, RAIL_N = 80;
 const railMat = new THREE.MeshStandardMaterial({ color: 0xf4f1ea, roughness: 0.6 });
 const postIM = new THREE.InstancedMesh(new THREE.BoxGeometry(0.18, 1.3, 0.18), railMat, RAIL_N * 2);
 const barIM = new THREE.InstancedMesh(new THREE.BoxGeometry(0.08, 0.14, RAIL_SEG), railMat, RAIL_N * 4);
-postIM.castShadow = barIM.castShadow = true; scene.add(postIM, barIM);
+postIM.castShadow = barIM.castShadow = true; postIM.frustumCulled = barIM.frustumCulled = false; scene.add(postIM, barIM);
 function updateRails(pz) {
   const base = Math.floor((pz - 20) / RAIL_SEG) * RAIL_SEG;
   for (let i = 0; i < RAIL_N; i++) {
     const z = base + i * RAIL_SEG;
-    [-6.1, 6.1].forEach((x, s) => {
+    [-6.9, 6.9].forEach((x, s) => {
       _m.makeTranslation(x, 0.65, z); postIM.setMatrixAt(i * 2 + s, _m);
       _m.makeTranslation(x, 1.1, z + RAIL_SEG / 2); barIM.setMatrixAt(i * 4 + s * 2, _m);
       _m.makeTranslation(x, 0.6, z + RAIL_SEG / 2); barIM.setMatrixAt(i * 4 + s * 2 + 1, _m);
@@ -369,21 +396,22 @@ function nameSprite(text, color) {
 
 // ---------------- COURSE ----------------
 let course = [], spawnIdx = 0, active = [];
-const gateMats = [0xff4d6d, 0x3a86ff, 0xffbe0b];
+const gateMats = [0xe0306a, 0x2d6cff, 0xe8b400, 0x1fae5b];
 const poleTex = canvasTex(128, 16, (g, w, h) => { for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#ffffff' : '#e63946'; g.fillRect(i * 16, 0, 16, h); } });
 const poleTex2 = canvasTex(128, 16, (g, w, h) => { for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#ffffff' : '#1d4ed8'; g.fillRect(i * 16, 0, 16, h); } });
 
 let QORDER = QUESTIONS, qOffset = 0;
-function buildCourse(seed) {
-  const r = rng(seed); const qs = QORDER.slice(qOffset).concat(QORDER).map(q => q.slice());
+function buildCourse(seed, gateQs) {
+  const r = rng(seed); const qs = gateQs && gateQs.length ? gateQs : [CATEGORIES.random.q[0], CATEGORIES.random.q[1]];
   const ev = []; let qi = 0;
   for (let z = 120; z < FINISH - 100; z += GATE_GAP) {
-    const q = qs[qi++ % qs.length]; const order = shuffle([1, 2, 3], r);
-    ev.push({ type: 'gate', z, survey: q[0][0] === '*', q: q[0].replace(/^\*/, ''), opts: order.map(i => q[i]), correct: order.indexOf(1) });
+    const q = qs[qi++ % qs.length]; const order = shuffle([1, 2, 3, 4], r);
+    ev.push({ type: 'gate', z, q: q[0], opts: order.map(i => q[i]), correct: order.indexOf(1) });
+    ev.push({ type: 'spook', z: z + 92, lane: Math.floor(r() * 4), kind: r() < 0.5 ? 0 : 1 });
     ev.push({ type: 'fence', z: z + 60, style: r() < 0.5 ? 0 : 1 });
     if (r() < 0.75) ev.push({ type: 'fence', z: z + 115, style: r() < 0.5 ? 0 : 1 });
     for (const [start, n] of [[18, 6], [78, 5], [130, 6]]) {
-      const lane = Math.floor(r() * 3); for (let k = 0; k < n; k++) ev.push({ type: 'carrot', z: z + start + k * 3.5, lane });
+      const lane = Math.floor(r() * 4); for (let k = 0; k < n; k++) ev.push({ type: 'carrot', z: z + start + k * 3.5, lane });
     }
   }
   ev.push({ type: 'finish', z: FINISH });
@@ -408,14 +436,14 @@ function spawnEvent(e) {
     e.banners = [];
     LANES.forEach((x, i) => {
       const col = '#' + gateMats[i].toString(16).padStart(6, '0');
-      for (const dx of [-1.45, 1.45]) { const p = new THREE.Mesh(postGeo, whiteMat); p.position.set(x + dx, 2.1, 0); p.castShadow = true; g.add(p); }
-      const b = new THREE.Mesh(new THREE.PlaneGeometry(2.9, 1.45), new THREE.MeshStandardMaterial({ map: answerTex('ABC'[i], e.opts[i], col), side: THREE.DoubleSide, roughness: 0.5, emissive: 0xffffff, emissiveIntensity: 0.0 }));
+      for (const dx of [-1.38, 1.38]) { const p = new THREE.Mesh(postGeo, whiteMat); p.position.set(x + dx, 2.1, 0); p.castShadow = true; g.add(p); }
+      const b = new THREE.Mesh(new THREE.PlaneGeometry(2.76, 1.4), new THREE.MeshStandardMaterial({ map: answerTex('ABC'[i], e.opts[i], col), side: THREE.DoubleSide, roughness: 0.5, emissive: 0xffffff, emissiveIntensity: 0.0 }));
       b.position.set(x, 3.4, 0); b.rotation.y = Math.PI; b.castShadow = true; g.add(b); e.banners.push(b);
     });
   } else if (e.type === 'fence') {
     const tex = e.style ? poleTex2 : poleTex;
     const stdMat = new THREE.MeshStandardMaterial({ color: e.style ? 0x1d4ed8 : 0xe63946, roughness: 0.5 });
-    for (const x of [-5.6, 5.6]) {
+    for (const x of [-6.5, 6.5]) {
       const s = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.7, 0.6), stdMat); s.position.set(x, 0.85, 0); s.castShadow = true; g.add(s);
       // flower box
       const fb = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.35, 0.8), new THREE.MeshStandardMaterial({ color: 0x3f7d20 })); fb.position.set(x * 0.92, 0.18, 0.6); g.add(fb);
@@ -423,15 +451,28 @@ function spawnEvent(e) {
     }
     e.poles = [];
     for (const y of [0.45, 0.85, 1.25]) {
-      const pm = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 11, 10), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.5 }));
+      const pm = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 13, 10), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.5 }));
       pm.rotation.z = Math.PI / 2; pm.position.y = y; pm.castShadow = true; g.add(pm); e.poles.push(pm);
     }
     e.poles.forEach(p => { p.material.map = tex.clone(); p.material.map.wrapS = THREE.RepeatWrapping; p.material.map.repeat.set(4, 1); });
   } else if (e.type === 'finish') {
     const chk = canvasTex(512, 128, (g, w, h) => { for (let x = 0; x < 16; x++) for (let y = 0; y < 4; y++) { g.fillStyle = (x + y) % 2 ? '#111' : '#fff'; g.fillRect(x * 32, y * 32, 32, 32); } });
-    const ban = new THREE.Mesh(new THREE.PlaneGeometry(12, 1.6), new THREE.MeshStandardMaterial({ map: chk, side: THREE.DoubleSide })); ban.position.y = 4.6; g.add(ban);
-    for (const x of [-6, 6]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 5.4, 10), new THREE.MeshStandardMaterial({ color: 0x9b5de5 })); p.position.set(x, 2.7, 0); p.castShadow = true; g.add(p); }
-    const line = new THREE.Mesh(new THREE.PlaneGeometry(11, 1), new THREE.MeshStandardMaterial({ map: chk })); line.rotation.x = -Math.PI / 2; line.position.y = 0.04; g.add(line);
+    const ban = new THREE.Mesh(new THREE.PlaneGeometry(13.8, 1.6), new THREE.MeshStandardMaterial({ map: chk, side: THREE.DoubleSide })); ban.position.y = 4.6; g.add(ban);
+    for (const x of [-6.9, 6.9]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 5.4, 10), new THREE.MeshStandardMaterial({ color: 0x9b5de5 })); p.position.set(x, 2.7, 0); p.castShadow = true; g.add(p); }
+    const line = new THREE.Mesh(new THREE.PlaneGeometry(13.4, 1), new THREE.MeshStandardMaterial({ map: chk })); line.rotation.x = -Math.PI / 2; line.position.y = 0.04; g.add(line);
+  } else if (e.type === 'spook') {
+    const x = LANES[e.lane];
+    if (e.kind === 0) { // open striped umbrella lying on the track
+      const ut = canvasTex(256, 32, (g, w, h) => { const c = ['#ff4060', '#ffe12b', '#3df5ff', '#9b5de5', '#4dff8a', '#ff9d2e', '#ff5fd2', '#2d6cff']; for (let i = 0; i < 8; i++) { g.fillStyle = c[i]; g.fillRect(i * 32, 0, 32, h); } });
+      const um = new THREE.Mesh(new THREE.ConeGeometry(1.1, 0.55, 16, 1, true), new THREE.MeshStandardMaterial({ map: ut, side: THREE.DoubleSide, roughness: 0.6 }));
+      const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.2, 6), std('#222')); handle.position.y = -0.4; um.add(handle);
+      um.position.set(x, 0.75, 0); um.rotation.set(0.9, 0, 0.4); um.castShadow = true; g.add(um); e.spin = um;
+    } else { // flapping plastic bag on a stick
+      const bag = new THREE.Mesh(new THREE.IcosahedronGeometry(0.45, 1), new THREE.MeshStandardMaterial({ color: 0xf4f4f4, roughness: 0.25, transparent: true, opacity: 0.85, flatShading: true }));
+      bag.scale.set(1, 1.3, 0.6); bag.position.set(x, 1.2, 0); bag.castShadow = true; g.add(bag); e.flap = bag;
+      const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.2, 6), std('#6b4a2b')); stick.position.set(x, 0.6, 0); g.add(stick);
+    }
+    const warn = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.08), new THREE.MeshBasicMaterial({ color: 0xffe12b })); warn.rotation.x = -Math.PI / 2; warn.position.set(x, 0.05, 1.4); g.add(warn);
   } else if (e.type === 'carrot') {
     const c = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.9, 8), new THREE.MeshStandardMaterial({ color: 0xff8a1f, roughness: 0.5, emissive: 0xff5500, emissiveIntensity: 0.15 }));
     c.rotation.x = Math.PI; c.position.y = 0.0;
@@ -510,7 +551,7 @@ function hostHandle(fromId, d) {
     if (mode !== 'lobby') { conns.get(fromId)?.send({ t: 'full' }); return; }
     const used = Object.values(players).map(p => p.color);
     players[fromId] = { password: d.password, score: 0, outfit: d.outfit, name: d.name, color: COLORS.find(c => !used.includes(c)) || COLORS[0], z: 0, x: 0, y: 0, coins: 0, correct: 0 };
-    broadcast({ t: 'lobby', players, you: null }); conns.get(fromId)?.send({ t: 'you', id: fromId }); renderLobby();
+    broadcast({ t: 'lobby', players, you: null }); conns.get(fromId)?.send({ t: 'settings', settings }); conns.get(fromId)?.send({ t: 'you', id: fromId }); renderLobby();
   } else if (d.t === 'state') {
     if (players[fromId]) Object.assign(players[fromId], d.s);
   } else if (d.t === 'fin') {
@@ -544,7 +585,8 @@ function hostHandle(fromId, d) {
 function clientHandle(d) {
   if (d.t === 'you') { me.id = d.id; }
   else if (d.t === 'lobby') { players = d.players; renderLobby(); }
-  else if (d.t === 'start') { setQ(d.qseed, d.round); startRace(d.seed, d.players); $('timer').dataset.round = d.round; }
+  else if (d.t === 'start') { settings = d.settings || settings; matchEnd = Date.now() + d.remain; startRace(d.seed, d.players, d.gateQs); }
+  else if (d.t === 'settings') { settings = d.settings; renderLobby(); }
   else if (d.t === 'feed') { feed(d.text); }
   else if (d.t === 'hack') { startHackPhase(d); }
   else if (d.t === 'hackRes') { hkBody(d.ok ? `<div class="code" style="font-size:22px;color:#4dff8a">ACCESS GRANTED</div><div class="small">Stole ${d.amt} from ${esc(d.targetName)}!</div>` : `<div class="code" style="font-size:22px;color:#ff4060">ACCESS DENIED</div><div class="small">Wrong password.</div>`); d.ok ? sfx.good() : sfx.bad(); }
@@ -602,6 +644,10 @@ function renderLobby() {
   $('lobbyPlayers').innerHTML = Object.values(players).map(p => `<div class="chip" style="background:${p.color}">🐎 ${esc(p.name)}</div>`).join('');
   $('startBtn').style.display = isHost ? 'block' : 'none';
   $('lobbyWait').style.display = isHost ? 'none' : 'block';
+  $('hostSet').style.display = isHost ? 'block' : 'none';
+  $('setCat').innerHTML = Object.entries(CATEGORIES).map(([k, c]) => `<button data-v="${k}" class="${settings.cat === k ? 'sel' : ''}">${c.name}</button>`).join('');
+  $('setTime').innerHTML = [3, 5, 10].map(m => `<button data-v="${m}" class="${settings.mins === m ? 'sel' : ''}">${m} MIN</button>`).join('');
+  $('lobbySettings').textContent = `${(CATEGORIES[settings.cat] || {}).name} · ${settings.mins} MIN`;
 }
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 function saveName() {
@@ -611,22 +657,32 @@ function saveName() {
 let round = 0, finCount = 0, raceTimer = null, myPw = localStorage.getItem('hr_pw') || PASSWORDS[Math.floor(Math.random() * PASSWORDS.length)];
 function setQ(qs, rd) { QORDER = shuffle(QUESTIONS.slice(), rng(qs)); qOffset = ((rd - 1) * 4) % QORDER.length; }
 function toPlayer(id, msg) { if (id === me.id) clientHandle(msg); else conns.get(id)?.send(msg); }
-let gameQSeed = 1;
-function hostStart() { gameQSeed = Math.floor(Math.random() * 1e9); round = 0; for (const id in players) players[id].score = 0; nextRound(); }
+let settings = { cat: localStorage.getItem('hr_cat') || 'horse', mins: +(localStorage.getItem('hr_mins') || 5) }, matchEnd = 0;
+function takeQuestions(n) {
+  const cat = CATEGORIES[settings.cat] || CATEGORIES.horse; const key = 'hr_used_' + settings.cat;
+  let used = JSON.parse(localStorage.getItem(key) || '[]'); const out = [];
+  for (let k = 0; k < n; k++) {
+    let free = cat.q.map((_, i) => i).filter(i => !used.includes(i));
+    if (!free.length) { used = []; free = cat.q.map((_, i) => i); }
+    const i = free[Math.floor(Math.random() * free.length)]; used.push(i); out.push(cat.q[i]);
+  }
+  localStorage.setItem(key, JSON.stringify(used)); return out;
+}
+function hostStart() { round = 0; matchEnd = Date.now() + settings.mins * 60000; for (const id in players) players[id].score = 0; nextRound(); }
 function nextRound() {
   round++; finCount = 0; const seed = Math.floor(Math.random() * 1e9);
   for (const id in players) Object.assign(players[id], { z: 0, x: 0, y: 0, coins: 0, correct: 0, fin: 0, gain: 0 });
-  const m = { t: 'start', seed, players, round, qseed: gameQSeed }; broadcast(m); setQ(gameQSeed, round); startRace(seed, players); $('timer').dataset.round = round;
+  const gateQs = takeQuestions(2); const m = { t: 'start', seed, players, round, gateQs, settings, remain: matchEnd - Date.now() }; broadcast(m); clientHandle(m);
   clearTimeout(raceTimer); raceTimer = setTimeout(hostEndRace, 45000);
 }
 function hostEndRace() {
   clearTimeout(raceTimer);
   const opts = {}; for (const id in players) opts[id] = shuffle([players[id].password, ...shuffle(PASSWORDS.filter(w => w !== players[id].password), Math.random).slice(0, 3)], Math.random);
-  const q = QORDER[(qOffset + 3) % QORDER.length];
+  const q = takeQuestions(1)[0];
   const m = { t: 'hack', players, opts, q }; broadcast(m); clientHandle(m);
   // bots occasionally hack too
-  for (const id in players) if (players[id].bot && Math.random() < 0.5) setTimeout(() => { const others = Object.keys(players).filter(k => k !== id); const tg = others[Math.floor(Math.random() * others.length)]; hostHandle(id, { t: 'hackTry', target: tg, guess: opts[tg][Math.floor(Math.random() * 3)] }); }, 4000 + Math.random() * 8000);
-  raceTimer = setTimeout(() => { const b = { t: 'board', players, round, last: round >= ROUNDS }; broadcast(b); clientHandle(b); if (round < ROUNDS) raceTimer = setTimeout(nextRound, 6000); }, 16000);
+  for (const id in players) if (players[id].bot && Math.random() < 0.5) setTimeout(() => { const others = Object.keys(players).filter(k => k !== id); const tg = others[Math.floor(Math.random() * others.length)]; hostHandle(id, { t: 'hackTry', target: tg, guess: opts[tg][Math.floor(Math.random() * 4)] }); }, 5000 + Math.random() * 12000);
+  raceTimer = setTimeout(() => { const last = matchEnd - Date.now() < 20000; const b = { t: 'board', players, round, last, remain: matchEnd - Date.now() }; broadcast(b); clientHandle(b); if (!last) raceTimer = setTimeout(nextRound, 5000); }, 26000);
 }
 // ----- client: cyber hack phase -----
 let hkInt = null;
@@ -634,9 +690,9 @@ function hkBody(html) { $('hkBody').innerHTML = html; }
 function startHackPhase(d) {
   document.exitPointerLock?.();
   mode = 'hack'; $('hud').classList.remove('on'); $('touch').style.display = 'none'; show('hackS'); sfx.hack();
-  let left = 15; $('hkTimer').textContent = left + 's'; clearInterval(hkInt); hkInt = setInterval(() => { left--; $('hkTimer').textContent = Math.max(0, left) + 's'; if (left <= 0) { clearInterval(hkInt); hkBody('<div class="small">Time\'s up!</div>'); } }, 1000);
-  const q = d.q; const answers = shuffle([q[1], q[2], q[3]], Math.random);
-  hkBody(`<div class="small" style="margin:6px 0">Answer right to get +10 and a chance to HACK</div><div class="pbox" style="padding:12px;font-size:30px;color:#fff">${esc(q[0].replace(/^\*/, ''))}</div>` + answers.map(a => `<button class="btn yel hkA">${esc(a)}</button>`).join(''));
+  let left = 25; $('hkTimer').textContent = left + 's'; clearInterval(hkInt); hkInt = setInterval(() => { left--; $('hkTimer').textContent = Math.max(0, left) + 's'; if (left <= 0) { clearInterval(hkInt); hkBody('<div class="small">Time\'s up!</div>'); } }, 1000);
+  const q = d.q; const answers = shuffle([q[1], q[2], q[3], q[4]], Math.random);
+  hkBody(`<div class="small" style="margin:6px 0">Answer right to get +10 and a chance to HACK</div><div class="pbox" style="padding:12px;font-size:30px;color:#fff">${esc(q[0])}</div>` + answers.map(a => `<button class="btn yel hkA">${esc(a)}</button>`).join(''));
   $('hkBody').querySelectorAll('.hkA').forEach(b => b.onclick = () => {
     if (b.textContent !== q[1]) { sfx.bad(); hkBody(`<div class="code" style="font-size:20px;color:#ff4060">WRONG</div><div class="small">Answer: ${esc(q[1])}. No hack this round.</div>`); return; }
     sfx.good(); send({ t: 'bonus' });
@@ -644,8 +700,9 @@ function startHackPhase(d) {
     hkBody(`<div class="code" style="font-size:20px;color:#4dff8a">+10! PICK A TARGET</div>` + targets.map(([id, p]) => `<button class="btn cyn hkT" data-id="${id}">${esc(p.name)} · ${p.score || 0} pts</button>`).join(''));
     $('hkBody').querySelectorAll('.hkT').forEach(t => t.onclick = () => {
       const id = t.dataset.id;
-      hkBody(`<div class="small">Guess ${esc(d.players[id].name)}'s PASSWORD</div>` + d.opts[id].map(w => `<button class="btn pnk hkP">${w}</button>`).join(''));
-      $('hkBody').querySelectorAll('.hkP').forEach(pb => pb.onclick = () => { hkBody('<div class="small">HACKING…</div>'); send({ t: 'hackTry', target: id, guess: pb.textContent }); });
+      let g = 10; const gi = setInterval(() => { g--; const el = $('guessT'); if (el) el.textContent = g; if (g <= 0) { clearInterval(gi); if ($('guessT')) hkBody('<div class="code" style="font-size:20px;color:#ff4060">TOO SLOW!</div>'); } }, 1000);
+      hkBody(`<div class="small">Guess ${esc(d.players[id].name)}'s PASSWORD — <span id="guessT" style="color:#ffe12b">10</span>s</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:0 10px">` + d.opts[id].map(w => `<button class="btn pnk hkP">${w}</button>`).join('') + '</div>');
+      $('hkBody').querySelectorAll('.hkP').forEach(pb => pb.onclick = () => { clearInterval(gi); hkBody('<div class="small">HACKING…</div>'); send({ t: 'hackTry', target: id, guess: pb.textContent }); });
     });
   });
 }
@@ -654,7 +711,7 @@ function showBoard(d) {
   clearInterval(hkInt); mode = 'results'; $('hud').classList.remove('on');
   const all = Object.entries(d.players).map(([id, p]) => ({ ...p, id })).sort((a, b) => (b.score || 0) - (a.score || 0));
   const medals = ['🥇', '🥈', '🥉'];
-  $('resTitle').textContent = d.last ? 'FINAL!' : `ROUND ${d.round}/${ROUNDS}`;
+  $('resTitle').textContent = d.last ? 'FINAL!' : `AFTER RACE ${d.round}`; if (d.remain != null) matchEnd = Date.now() + d.remain; if (d.last) matchEnd = 0;
   $('resList').innerHTML = all.map((p, i) => `<div class="row2 ${i === 0 ? 'first' : ''}"><span>${medals[i] || (i + 1) + '.'} ${esc(p.name)}${p.id === me.id ? ' (you)' : ''}</span><span>${p.score || 0} pts</span></div>`).join('');
   $('againBtn').style.display = d.last && isHost ? 'block' : 'none';
   $('againWait').textContent = d.last ? (isHost ? '' : 'Waiting for host…') : 'Next race in a few seconds…';
@@ -663,12 +720,12 @@ function showBoard(d) {
 
 // ---------------- RACE ----------------
 function removeGhost(id) { if (ghosts[id]) { scene.remove(ghosts[id].g); delete ghosts[id]; } }
-function startRace(seed, plist) {
+function startRace(seed, plist, gateQs) {
   raceSeed = seed; players = plist || players;
-  clearCourse(); course = buildCourse(seed);
+  clearCourse(); course = buildCourse(seed, gateQs); clearPrints();
   Object.keys(ghosts).forEach(removeGhost);
-  aimX = 0; xVel = 0; setTimeout(() => { try { canvas.requestPointerLock?.(); } catch (e) {} }, 0);
-  Object.assign(me, { finished: false, z: 0, x: 0, lane: 1, y: 0, vy: 0, coins: 0, correct: 0, speedLvl: 0, boostLvl: 0, multLvl: 0 });
+  const myLane = Math.max(0, Object.keys(players).indexOf(me.id)) % 4; aimX = LANES[myLane]; xVel = 0; setTimeout(() => { try { canvas.requestPointerLock?.()?.catch?.(() => {}); } catch (e) {} }, 0);
+  Object.assign(me, { finished: false, z: 0, x: LANES[myLane], lane: myLane, y: 0, vy: 0, coins: 0, correct: 0, speedLvl: 0, boostLvl: 0, multLvl: 0 });
   effects = { boost: 0, slow: 0, slowMult: 1, mud: 0 };
   me.color = players[me.id]?.color || COLORS[0];
   rebuildMyHorse();
@@ -694,10 +751,10 @@ function endRace() {
 }
 
 function laneIndexOf(x) { let best = 0; LANES.forEach((lx, i) => { if (Math.abs(lx - x) < Math.abs(LANES[best] - x)) best = i; }); return best; }
-function steer(dir) { if (mode === 'race' || mode === 'count') { me.lane = clamp(me.lane + dir, 0, 2); aimX = LANES[me.lane]; } }
+function steer(dir) { if (mode === 'race' || mode === 'count') { me.lane = clamp(me.lane + dir, 0, 3); aimX = LANES[me.lane]; } }
 let aimX = 0, xVel = 0;
-addEventListener('mousemove', e => { if (document.pointerLockElement !== canvas || !(mode === 'race' || mode === 'count')) return; aimX = clamp(aimX - e.movementX * 0.018, -4.2, 4.2); me.lane = laneIndexOf(aimX); });
-canvas.addEventListener('mousedown', () => { if ((mode === 'race' || mode === 'count') && document.pointerLockElement !== canvas) canvas.requestPointerLock?.(); });
+addEventListener('mousemove', e => { if (document.pointerLockElement !== canvas || !(mode === 'race' || mode === 'count')) return; aimX = clamp(aimX - e.movementX * 0.02, -5.6, 5.6); me.lane = laneIndexOf(aimX); });
+canvas.addEventListener('mousedown', () => { if ((mode === 'race' || mode === 'count') && document.pointerLockElement !== canvas) canvas.requestPointerLock?.()?.catch?.(() => {}); });
 function jump() { if (mode === 'race' && me.y <= 0.001) { me.vy = 9; sfx.jump(); airborne = true; } }
 let airborne = false;
 
@@ -718,6 +775,8 @@ function triggerEvent(e) {
   } else if (e.type === 'fence') {
     if (me.y < 1.0) { e.knocked = 0.001; effects.slow = 1.0; effects.slowMult = 0.4; sfx.knock(); toast('RAIL DOWN!', '#ffe12b'); shake = 0.4; }
     else { me.coins += 2; toast('CLEAR! +2', '#3df5ff'); renderShop(); }
+  } else if (e.type === 'spook') {
+    if (laneIndexOf(me.x) === e.lane && me.y < 1.3) { effects.slow = 1.6; effects.slowMult = 0.2; spookT = 0.9; sfx.spook(); toast('SPOOKED!', '#ff5fd2'); shake = 0.5; }
   } else if (e.type === 'finish') {
     if (!me.finished) { me.finished = true; send({ t: 'fin', carrots: me.coins }); toast('FINISHED!', '#ffe12b'); sfx.good(); }
   } else if (e.type === 'carrot') {
@@ -727,12 +786,12 @@ function triggerEvent(e) {
   }
 }
 
-let lastCount = 0, glitch = 0, shake = 0, lastNet = 0, lastShopRender = 0;
+let spookT = 0, lastCount = 0, glitch = 0, shake = 0, lastNet = 0, lastShopRender = 0;
 function updateQuestion() {
   const next = active.find(e => e.type === 'gate' && !e.done && e.z > me.z) || course.find(e => e.type === 'gate' && e.z > me.z);
   if (next !== curGate) {
     curGate = next;
-    if (next) { $('qkind').textContent = next.survey ? '★ SURVEY SAYS ★' : 'QUIZ'; $('qkind').className = next.survey ? 'survey' : ''; $('qtext').textContent = next.q; next.opts.forEach((o, i) => $('op' + i).textContent = ['◀ ', '▲ ', '▶ '][i] + o); }
+    if (next) { const c = CATEGORIES[settings.cat]; $('qkind').textContent = c ? c.name : 'QUIZ'; $('qkind').className = settings.cat === 'survey' ? 'survey' : ''; $('qtext').textContent = next.q; }
   }
   $('qbox').classList.toggle('down', !!(next && next.z - me.z < 150 && next.z - me.z > -2));
 }
@@ -746,6 +805,14 @@ function updateBoard() {
   $('board').innerHTML = list.map((p, i) => `<div class="${p.id === myId ? 'me' : ''}"><span><span style="color:${p.color}">●</span> ${i + 1}. ${esc(p.name)}</span><span>${Math.floor(p.z)}m</span></div>`).join('');
 }
 
+let horseSpeed = 0, printT = 0, printSide = 1;
+const PRINT_N = 220; const printGeo = new THREE.CircleGeometry(0.11, 10); printGeo.scale(1, 1.25, 1);
+const printMat = new THREE.MeshBasicMaterial({ color: 0x3a2412, transparent: true, opacity: 0.45, depthWrite: false });
+const printsIM = new THREE.InstancedMesh(printGeo, printMat, PRINT_N); printsIM.frustumCulled = false; scene.add(printsIM); let printIdx = 0;
+const _pq = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
+function addPrint(x, z) { _m.compose(_p.set(x, 0.035, z), _pq, _s.set(1, 1, 1)); printsIM.setMatrixAt(printIdx++ % PRINT_N, _m); printsIM.instanceMatrix.needsUpdate = true; }
+function clearPrints() { _m.makeTranslation(0, -50, 0); for (let i = 0; i < PRINT_N; i++) printsIM.setMatrixAt(i, _m); printsIM.instanceMatrix.needsUpdate = true; }
+clearPrints();
 const clock = new THREE.Clock();
 let boardT = 0;
 function tick() {
@@ -768,7 +835,7 @@ function tick() {
     if (effects.boost > 0) speed *= 1.5 + me.boostLvl * 0.12;
     if (effects.slow > 0) speed *= effects.slowMult;
     if (effects.mud > 0) speed *= 0.5;
-    const prevZ = me.z; me.z += speed * dt;
+    horseSpeed = speed; const prevZ = me.z; me.z += speed * dt;
     // spawn / trigger / despawn
     while (spawnIdx < course.length && course[spawnIdx].z < me.z + 230) spawnEvent(course[spawnIdx++]);
     for (const e of active) if (!e.hit && e.z > prevZ && e.z <= me.z + 0.0) { e.hit = true; triggerEvent(e); }
@@ -778,7 +845,7 @@ function tick() {
       b.slow = Math.max(0, (b.slow || 0) - dt); b.boost = Math.max(0, (b.boost || 0) - dt);
       if (Math.random() < dt * 0.12) b.boost = 2.5; if (Math.random() < dt * 0.1) b.slow = 1.2;
       b.z += (BASE_SPEED * b.skill) * (b.boost ? 1.5 : 1) * (b.slow ? 0.5 : 1) * dt;
-      b.x = LANES[Math.floor(b.z / 90 + b.skill * 7) % 3];
+      b.x = LANES[Math.floor(b.z / 110 + b.lane0) % 4];
       if (b.z >= FINISH && !b.fin) hostHandle(id, { t: 'fin', carrots: 4 + Math.floor(Math.random() * 12) });
     }
     // network
@@ -796,13 +863,13 @@ function tick() {
   }
 
   // player physics
-  { const tgt = LANES[me.lane] * 0.8 + aimX * 0.2; xVel += (tgt - me.x) * 140 * dt; xVel *= Math.exp(-dt * 11); me.x += xVel * dt; }
+  { const tgt = LANES[me.lane] * 0.85 + aimX * 0.15; xVel += (tgt - me.x) * 140 * dt; xVel *= Math.exp(-dt * 11); me.x += xVel * dt; }
   me.vy -= 26 * dt; me.y = Math.max(0, me.y + me.vy * dt); if (me.y === 0) { me.vy = Math.max(0, me.vy); if (airborne) { airborne = false; sfx.land(); } }
 
   if (horse) {
     horse.position.set(me.x, me.y, me.z);
     horse.rotation.y = clamp(xVel * 0.05, -0.4, 0.4); horse.rotation.z = clamp(-xVel * 0.02, -0.15, 0.15);
-    horse.rotation.x = me.y > 0 ? -clamp(me.vy * 0.04, -0.35, 0.35) : 0;
+    spookT = Math.max(0, spookT - dt); horse.rotation.x = spookT > 0 ? -Math.sin((0.9 - spookT) / 0.9 * Math.PI) * 0.55 : (me.y > 0 ? -clamp(me.vy * 0.04, -0.35, 0.35) : 0);
     { const ud = horse.userData; ud.phase += dt * (mode === 'race' ? speed / BASE_SPEED : 0.3) * 9; ud.rider.position.y = ud.riderY + Math.abs(Math.sin(ud.phase)) * 0.07; ud.rider.rotation.x = me.y > 0 ? 0.25 : Math.sin(ud.phase) * 0.04; }
     horse.userData.mixer.update(dt * (mode === 'race' ? speed / BASE_SPEED : 0.25) * 1.1);
     if (mode === 'race' && me.y === 0 && Math.random() < 0.6) emitDust(me.x, me.z);
@@ -820,10 +887,15 @@ function tick() {
   }
   // course anim
   for (const e of active) {
+    if (e.spin) e.spin.rotation.y += dt * 0.6;
+    if (e.flap) { e.flap.rotation.z = Math.sin(now * 9 + e.z) * 0.35; e.flap.position.y = 1.2 + Math.sin(now * 6) * 0.08; }
     if (e.type === 'carrot' && e.holder) { e.holder.rotation.y += dt * 3; e.holder.position.y = 1.1 + Math.sin(now * 4 + e.z) * 0.15; }
     if (e.type === 'fence' && e.knocked) { e.knocked = Math.min(1, e.knocked + dt * 2.5); e.poles.forEach((p, i) => { p.position.y = lerp([0.45, 0.85, 1.25][i], 0.08 + i * 0.12, e.knocked); p.position.z = e.knocked * (0.6 + i * 0.3); p.rotation.y = e.knocked * (i - 1) * 0.15; }); }
   }
   updateDust(dt);
+  if (matchEnd) { const ms = Math.max(0, matchEnd - Date.now()); $('matchT').style.display = 'block'; $('matchT').textContent = '⏱ ' + fmtTime(ms / 1000); } else $('matchT').style.display = 'none';
+  if (mode === 'race' && horse && me.y === 0) { printT -= dt; if (printT <= 0) { printT = 0.11; printSide = -printSide; addPrint(me.x + printSide * 0.22, me.z - 1.2); } }
+  if (mode === 'race') hoofbeat(now, horseSpeed);
 
   // world follow
   const pz = me.z;
@@ -867,13 +939,15 @@ $('soloBtn').onclick = () => {
   if (!saveName()) return;
   solo = true; isHost = true; me.id = 'host';
   players = { host: { name: me.name, color: COLORS[0], password: myPw, score: 0, outfit } };
-  [['Thunder', '#3a86ff', 0.97], ['Daisy', '#22c06b', 1.02], ['Biscuit', '#ffbe0b', 1.06]].forEach(([name, color, skill], i) => players['bot' + i] = { bot: true, name, color, skill, z: 0, x: LANES[i], y: 0, score: 0, password: PASSWORDS[Math.floor(Math.random() * PASSWORDS.length)] });
-  hostStart();
+  [['Thunder', '#3a86ff', 0.97], ['Daisy', '#22c06b', 1.02], ['Biscuit', '#ffbe0b', 1.06]].forEach(([name, color, skill], i) => players['bot' + i] = { bot: true, lane0: i + 1, name, color, skill, z: 0, x: LANES[i + 1], y: 0, score: 0, password: PASSWORDS[Math.floor(Math.random() * PASSWORDS.length)] });
+  settings.mins = Math.min(settings.mins, 3); hostStart();
 };
 function buildPw() { $('pwPick').innerHTML = PASSWORDS.map(w => `<button class="${w === myPw ? 'sel' : ''}">${w}</button>`).join(''); }
 $('pwPick').onclick = e => { const b = e.target.closest('button'); if (!b) return; myPw = b.textContent; localStorage.setItem('hr_pw', myPw); buildPw(); };
 buildPw();
 $('startBtn').onclick = () => { if (isHost) hostStart(); };
+$('setCat').onclick = e => { const b = e.target.closest('button'); if (!b || !isHost) return; settings.cat = b.dataset.v; localStorage.setItem('hr_cat', settings.cat); broadcast({ t: 'settings', settings }); renderLobby(); };
+$('setTime').onclick = e => { const b = e.target.closest('button'); if (!b || !isHost) return; settings.mins = +b.dataset.v; localStorage.setItem('hr_mins', settings.mins); broadcast({ t: 'settings', settings }); renderLobby(); };
 $('againBtn').onclick = () => {
   if (isHost) hostStart();
 };
@@ -895,6 +969,7 @@ const setMuteLabel = () => $('muteBtn').textContent = muted ? '🔇 MUTED [M]' :
 setMuteLabel();
 function toggleMute() { muted = !muted; localStorage.setItem('hr_muted', muted ? '1' : '0'); setMuteLabel(); if (masterGain) masterGain.gain.value = muted ? 0 : 1; }
 $('muteBtn').onclick = e => { e.stopPropagation(); toggleMute(); };
+loadSfx();
 await Promise.all([document.fonts.load('40px VT323'), document.fonts.load('20px "Press Start 2P"')]).catch(() => {});
 new GLTFLoader().load('models/Horse.glb', gltf => {
   horseProto = gltf.scene.getObjectByProperty('type', 'Mesh') || gltf.scene.children[0];
