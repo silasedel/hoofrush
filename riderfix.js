@@ -4,18 +4,18 @@
 import * as THREE from 'three';
 
 // Additive euler deltas on top of the rest rotations (same format as POSE in game.js).
-// Solved with IK at RIDER_Y=1.73 for the narrow saddle (barrel ellipse cy=1.255 rx=0.218 ry=0.262):
-// hands ~(+-0.09, 1.78, 0.42); knees (+-0.33, 1.45, 0.16); ankles (+-0.32, 1.02, 0.07); lower legs vertical,
-// heels down, fists closed thumbs up. Right side is the exact mirror of the left (x same, y/z negated).
-// Clearance: leg surfaces >= 2 cm outside the flap surface below y=1.45; crotch/seat rests on seat (y 1.55).
+// Solved with IK at RIDER_Y=1.725 for flaps flat on the barrel (ellipse cy=1.255 rx=0.218 ry=0.262, flap +0.008):
+// hands ~(+-0.09, 1.78, 0.42); knees (+-0.285, 1.396, 0.158); ankles (+-0.289, 0.960, 0.070); lower legs vertical
+// against the barrel, heels down, fists closed thumbs up. Right side = exact mirror of left (x same, y/z negated).
+// Clearance: leg surfaces at |x| >= 0.233 below y=1.45 (resting on the flaps); inner thigh <= ~1 cm into pad top.
 export const RIDER_POSE = {
   'mixamorigSpine': [0.12,  0,  0],
   'mixamorigSpine1': [0.05,  0,  0],
   'mixamorigNeck': [-0.05,  0,  0],
   'mixamorigHead': [-0.12,  0,  0],
-  'mixamorigLeftArm': [1.084,  0.248,  0.853],
-  'mixamorigLeftForeArm': [-0.213,  0.019,  0.884],
-  'mixamorigLeftHand': [0.223,  -0.728,  -0.326],
+  'mixamorigLeftArm': [1.079,  0.245,  0.853],
+  'mixamorigLeftForeArm': [-0.222,  0.017,  0.907],
+  'mixamorigLeftHand': [0.218,  -0.743,  -0.349],
   'mixamorigLeftHandThumb1': [0.225,  0.201,  -0.01],
   'mixamorigLeftHandThumb2': [0.467,  0.033,  0.17],
   'mixamorigLeftHandThumb3': [0.334,  -0.012,  0.222],
@@ -31,9 +31,9 @@ export const RIDER_POSE = {
   'mixamorigLeftHandPinky1': [1.24,  0.123,  0.324],
   'mixamorigLeftHandPinky2': [1.319,  0.235,  0.303],
   'mixamorigLeftHandPinky3': [-0.848,  0.11,  -0.246],
-  'mixamorigRightArm': [1.083,  -0.242,  -0.858],
-  'mixamorigRightForeArm': [-0.215,  -0.016,  -0.885],
-  'mixamorigRightHand': [0.233,  0.703,  0.326],
+  'mixamorigRightArm': [1.078,  -0.239,  -0.858],
+  'mixamorigRightForeArm': [-0.224,  -0.014,  -0.907],
+  'mixamorigRightHand': [0.228,  0.718,  0.349],
   'mixamorigRightHandThumb1': [0.228,  -0.2,  0.013],
   'mixamorigRightHandThumb2': [0.469,  -0.031,  -0.166],
   'mixamorigRightHandThumb3': [0.331,  0.011,  -0.227],
@@ -49,16 +49,16 @@ export const RIDER_POSE = {
   'mixamorigRightHandPinky1': [1.245,  -0.111,  -0.314],
   'mixamorigRightHandPinky2': [1.299,  -0.258,  -0.345],
   'mixamorigRightHandPinky3': [-0.826,  -0.126,  0.296],
-  'mixamorigLeftUpLeg': [-1.109,  0.428,  0.922],
-  'mixamorigLeftLeg': [-1.106,  0.51,  0.049],
-  'mixamorigLeftFoot': [1.156,  -0.222,  -0.262],
-  'mixamorigRightUpLeg': [-1.11,  -0.437,  -0.919],
-  'mixamorigRightLeg': [-1.089,  -0.501,  -0.048],
-  'mixamorigRightFoot': [1.119,  0.217,  0.27],
+  'mixamorigLeftUpLeg': [-0.919,  0.517,  0.743],
+  'mixamorigLeftLeg': [-0.907,  0.316,  0.05],
+  'mixamorigLeftFoot': [1.136,  -0.254,  -0.318],
+  'mixamorigRightUpLeg': [-0.918,  -0.524,  -0.738],
+  'mixamorigRightLeg': [-0.89,  -0.309,  -0.049],
+  'mixamorigRightFoot': [1.1,  0.247,  0.324],
 };
 
 // Rider group y in horse space (hips bone sits at rider group origin).
-export const RIDER_Y = 1.73;
+export const RIDER_Y = 1.725;
 
 // Helmet placement in head-bone-normalized units (multiply by k = 1/headBoneWorldScale).
 export const HELMET = { pos: [0, 0.112, -0.012], scale: [0.93, 0.9, 1.0] };
