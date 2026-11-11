@@ -2,10 +2,10 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { RIDER_POSE, reshapeRider, RIDER_Y, HELMET } from './riderfix.js?v=1794366680';
+import { RIDER_POSE, reshapeRider, RIDER_Y, HELMET } from './riderfix.js?v=1794366761';
 import { ParametricGeometry } from 'three/addons/geometries/ParametricGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { CATEGORIES } from './questions.js?v=1794366680';
+import { CATEGORIES } from './questions.js?v=1794366761';
 
 // ---------------- CONFIG ----------------
 const DURATION = 150;           // seconds per race
